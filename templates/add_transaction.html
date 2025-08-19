@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">➕ Adicionar Nova Transação</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descrição</label>
+                        <input type="text" class="form-control" id="description" name="description" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Valor (R$)</label>
+                        <input type="number" step="0.01" class="form-control" id="amount" name="amount" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="type" class="form-label">Tipo</label>
+                        <select class="form-control" id="type" name="type" required>
+                            <option value="">Selecione o tipo</option>
+                            <option value="income">💰 Receita</option>
+                            <option value="expense">💸 Despesa</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Categoria</label>
+                        <select class="form-control" id="category" name="category" required>
+                            <option value="">Selecione a categoria</option>
+                            <optgroup label="💰 Receitas">
+                                {% for category in income_categories %}
+                                    <option value="{{ category.id }}" style="font-weight: bold;">📂 {{ category.name }}</option>
+                                    {% for subcategory in category.children %}
+                                        <option value="{{ subcategory.id }}" style="padding-left: 20px;">
+                                            &nbsp;&nbsp;&nbsp;&nbsp;📄 {{ subcategory.name }}
+                                        </option>
+                                    {% endfor %}
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="🏠 Despesas Fixas">
+                                {% for category in fixed_expense_categories %}
+                                    <option value="{{ category.id }}" style="font-weight: bold;">� {{ category.name }}</option>
+                                    {% for subcategory in category.children %}
+                                        <option value="{{ subcategory.id }}" style="padding-left: 20px;">
+                                            &nbsp;&nbsp;&nbsp;&nbsp;📄 {{ subcategory.name }}
+                                        </option>
+                                    {% endfor %}
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="📈 Despesas Variáveis">
+                                {% for category in variable_expense_categories %}
+                                    <option value="{{ category.id }}" style="font-weight: bold;">📂 {{ category.name }}</option>
+                                    {% for subcategory in category.children %}
+                                        <option value="{{ subcategory.id }}" style="padding-left: 20px;">
+                                            &nbsp;&nbsp;&nbsp;&nbsp;📄 {{ subcategory.name }}
+                                        </option>
+                                    {% endfor %}
+                                {% endfor %}
+                            </optgroup>
+                        </select>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <a href="{{ url_for('categories') }}" class="text-decoration-none">🏷️ Gerenciar categorias</a>
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Observações (opcional)</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success">💾 Salvar Transação</button>
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary">🔙 Voltar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

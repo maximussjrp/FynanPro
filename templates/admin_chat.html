@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Chat - Finance SaaS Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #7c4dff 0%, #448aff 50%, #00bcd4 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .admin-container {
+            backdrop-filter: blur(15px);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+            margin: 20px auto;
+            padding: 30px;
+        }
+        .message-card {
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: white;
+        }
+        .message-card.unread {
+            border-left: 4px solid #7c4dff;
+            background: #f8f9ff;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7c4dff, #448aff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        .reply-form {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 10px;
+            display: none;
+        }
+        .stats-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        .btn-reply {
+            background: linear-gradient(135deg, #7c4dff, #448aff);
+            border: none;
+            color: white;
+        }
+        .btn-reply:hover {
+            background: linear-gradient(135deg, #6f42c1, #0056b3);
+            color: white;
+        }
+        .quick-reply-tag {
+            background: rgba(124, 77, 255, 0.1);
+            border: 1px solid #7c4dff;
+            color: #7c4dff;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            margin: 2px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background: rgba(0,0,0,0.1);">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
+                <i class="fas fa-chart-line me-2"></i>Finance SaaS - Admin
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('index') }}">
+                    <i class="fas fa-home me-1"></i>Dashboard
+                </a>
+                <a class="nav-link" href="{{ url_for('manage_quick_replies') }}">
+                    <i class="fas fa-cog me-1"></i>Respostas Rápidas
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <!-- Estatísticas -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <h3 class="text-primary">{{ unread_messages|length }}</h3>
+                    <p class="mb-0">Mensagens Não Lidas</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <h3 class="text-success">{{ recent_conversations|length }}</h3>
+                    <p class="mb-0">Conversas Recentes</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <h3 class="text-info">{{ quick_replies|length }}</h3>
+                    <p class="mb-0">Respostas Automáticas</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <h3 class="text-warning">95%</h3>
+                    <p class="mb-0">Taxa de Satisfação</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Mensagens Não Lidas -->
+            <div class="col-lg-8">
+                <div class="admin-container">
+                    <h4 class="mb-4">
+                        <i class="fas fa-envelope text-primary me-2"></i>
+                        Mensagens Não Lidas ({{ unread_messages|length }})
+                    </h4>
+                    
+                    {% if unread_messages %}
+                        {% for message in unread_messages %}
+                        <div class="message-card unread" data-user-id="{{ message.user_id }}">
+                            <div class="user-info">
+                                <div class="user-avatar">
+                                    {{ message.user.name[0].upper() }}
+                                </div>
+                                <div>
+                                    <strong>{{ message.user.name }}</strong>
+                                    <small class="text-muted d-block">{{ message.user.email }}</small>
+                                    <small class="text-muted">{{ message.created_at.strftime('%d/%m/%Y às %H:%M') }}</small>
+                                </div>
+                                <div class="ms-auto">
+                                    <span class="badge bg-primary">
+                                        {{ message.user.get_plan_name() }}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="message-content">
+                                <p class="mb-2">{{ message.message }}</p>
+                            </div>
+                            
+                            <div class="message-actions">
+                                <button class="btn btn-reply btn-sm me-2" onclick="showReplyForm({{ message.user_id }})">
+                                    <i class="fas fa-reply me-1"></i>Responder
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="markAsRead({{ message.id }})">
+                                    <i class="fas fa-check me-1"></i>Marcar como Lida
+                                </button>
+                            </div>
+                            
+                            <!-- Formulário de Resposta -->
+                            <div class="reply-form" id="replyForm{{ message.user_id }}">
+                                <div class="mb-3">
+                                    <label class="form-label">Sua Resposta:</label>
+                                    <textarea class="form-control" rows="3" id="replyMessage{{ message.user_id }}" 
+                                              placeholder="Digite sua resposta..."></textarea>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <button class="btn btn-success btn-sm" onclick="sendReply({{ message.user_id }})">
+                                            <i class="fas fa-paper-plane me-1"></i>Enviar
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" onclick="hideReplyForm({{ message.user_id }})">
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                    <small class="text-muted align-self-center">
+                                        <i class="fas fa-clock me-1"></i>Resposta em tempo real
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
+                            <h5>Todas as mensagens foram respondidas!</h5>
+                            <p class="text-muted">Você está em dia com o atendimento aos clientes.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Sidebar com Respostas Rápidas -->
+            <div class="col-lg-4">
+                <div class="admin-container">
+                    <h5 class="mb-3">
+                        <i class="fas fa-bolt text-warning me-2"></i>
+                        Respostas Rápidas
+                    </h5>
+                    
+                    {% if quick_replies %}
+                        {% for reply in quick_replies %}
+                        <div class="mb-3">
+                            <div class="quick-reply-tag">{{ reply.keyword }}</div>
+                            <p class="small text-muted mt-1">{{ reply.response[:100] }}...</p>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <a href="{{ url_for('manage_quick_replies') }}" class="btn btn-outline-primary btn-sm w-100 mt-3">
+                        <i class="fas fa-cog me-1"></i>Gerenciar Respostas
+                    </a>
+                </div>
+
+                <!-- Conversas Recentes -->
+                <div class="admin-container mt-4">
+                    <h5 class="mb-3">
+                        <i class="fas fa-history text-info me-2"></i>
+                        Últimas Conversas
+                    </h5>
+                    
+                    {% for message in recent_conversations[:5] %}
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="user-avatar" style="width: 30px; height: 30px; font-size: 0.8rem;">
+                            {{ message.user.name[0].upper() }}
+                        </div>
+                        <div class="ms-2 flex-grow-1">
+                            <small class="fw-bold">{{ message.user.name }}</small>
+                            <small class="text-muted d-block">{{ message.message[:30] }}...</small>
+                        </div>
+                        <small class="text-muted">{{ message.created_at.strftime('%H:%M') }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showReplyForm(userId) {
+            document.getElementById(`replyForm${userId}`).style.display = 'block';
+            document.getElementById(`replyMessage${userId}`).focus();
+        }
+
+        function hideReplyForm(userId) {
+            document.getElementById(`replyForm${userId}`).style.display = 'none';
+        }
+
+        function sendReply(userId) {
+            const message = document.getElementById(`replyMessage${userId}`).value.trim();
+            
+            if (!message) {
+                alert('Digite uma mensagem');
+                return;
+            }
+
+            fetch('/admin/chat/reply', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId,
+                    message: message
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Resposta enviada com sucesso!');
+                    location.reload();
+                } else {
+                    alert('Erro: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Erro ao enviar resposta');
+                console.error(error);
+            });
+        }
+
+        function markAsRead(messageId) {
+            // Implementar função para marcar como lida
+            alert('Funcionalidade em desenvolvimento');
+        }
+
+        // Auto-refresh a cada 30 segundos
+        setInterval(() => {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>

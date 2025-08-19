@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">📋 Todas as Transações</h5>
+                <a href="{{ url_for('add_transaction') }}" class="btn btn-primary btn-sm">➕ Nova Transação</a>
+            </div>
+            <div class="card-body">
+                {% if transactions %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrição</th>
+                                    <th>Categoria</th>
+                                    <th>Valor</th>
+                                    <th>Tipo</th>
+                                    <th>Observações</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in transactions %}
+                                <tr>
+                                    <td>{{ transaction.date.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td>{{ transaction.description }}</td>
+                                    <td>{{ transaction.category }}</td>
+                                    <td class="{{ 'income' if transaction.type == 'income' else 'expense' }}">
+                                        R$ {{ "%.2f"|format(transaction.amount) }}
+                                    </td>
+                                    <td>
+                                        <span class="badge {{ 'bg-success' if transaction.type == 'income' else 'bg-danger' }}">
+                                            {{ 'Receita' if transaction.type == 'income' else 'Despesa' }}
+                                        </span>
+                                    </td>
+                                    <td>{{ transaction.notes or '-' }}</td>
+                                    <td>
+                                        <a href="{{ url_for('delete_transaction', transaction_id=transaction.id) }}" 
+                                           class="btn btn-danger btn-sm"
+                                           onclick="return confirm('Tem certeza que deseja excluir esta transação?')">
+                                            🗑️ Excluir
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <p class="text-muted">📝 Nenhuma transação encontrada.</p>
+                        <a href="{{ url_for('add_transaction') }}" class="btn btn-primary">Adicionar Primeira Transação</a>
+                    </div>
+                {% endif %}
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-primary">🔙 Voltar ao Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

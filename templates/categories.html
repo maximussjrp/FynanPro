@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">🏷️ Gerenciar Categorias Hierárquicas</h5>
+                <div>
+                    <button class="btn btn-outline-secondary btn-sm me-2" onclick="expandAll()">📂 Expandir Todas</button>
+                    <button class="btn btn-outline-secondary btn-sm me-2" onclick="collapseAll()">📁 Retrair Todas</button>
+                    <a href="{{ url_for('add_category') }}" class="btn btn-success btn-sm">➕ Nova Categoria</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Categorias de Receita -->
+                    <div class="col-md-6">
+                        <h6 class="text-success mb-3">💰 Categorias de Receita</h6>
+                        {% if income_categories %}
+                            <div class="category-tree">
+                                {% for category in income_categories %}
+                                <div class="category-item mb-2">
+                                    <div class="d-flex justify-content-between align-items-center p-2 border rounded category-header" 
+                                         data-category-id="{{ category.id }}">
+                                        <div class="d-flex align-items-center">
+                                            {% if category.children %}
+                                                <button class="btn btn-link btn-sm p-0 me-2 toggle-btn" onclick="toggleCategory({{ category.id }})" title="Expandir/Retrair">
+                                                    <i class="fas fa-chevron-right" id="icon-{{ category.id }}"></i>
+                                                </button>
+                                            {% else %}
+                                                <span class="me-4"></span>
+                                            {% endif %}
+                                            <span class="badge me-2" style="background-color: {{ category.color }}; width: 15px; height: 15px; border-radius: 50%;"></span>
+                                            <strong>{{ category.name }}</strong>
+                                        </div>
+                                        <div>
+                                            <a href="{{ url_for('edit_category', category_id=category.id) }}" 
+                                               class="btn btn-outline-primary btn-sm" title="Editar">✏️</a>
+                                            <a href="{{ url_for('delete_category', category_id=category.id) }}" 
+                                               class="btn btn-outline-danger btn-sm" title="Excluir"
+                                               onclick="return confirm('Tem certeza que deseja excluir esta categoria?')">🗑️</a>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if category.children %}
+                                    <div class="subcategories ms-4" id="sub-{{ category.id }}" style="display: none;">
+                                        {% for subcategory in category.children %}
+                                        <div class="d-flex justify-content-between align-items-center p-2 border-start border-2 ps-3 mt-1 subcategory-item">
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge me-2" style="background-color: {{ subcategory.color }}; width: 12px; height: 12px; border-radius: 50%;"></span>
+                                                <span>{{ subcategory.name }}</span>
+                                            </div>
+                                            <div>
+                                                <a href="{{ url_for('edit_category', category_id=subcategory.id) }}" 
+                                                   class="btn btn-outline-primary btn-sm" title="Editar">✏️</a>
+                                                <a href="{{ url_for('delete_category', category_id=subcategory.id) }}" 
+                                                   class="btn btn-outline-danger btn-sm" title="Excluir"
+                                                   onclick="return confirm('Tem certeza que deseja excluir esta subcategoria?')">🗑️</a>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">Nenhuma categoria de receita encontrada.</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Categorias de Despesas Fixas -->
+                    <div class="col-md-6">
+                        <h6 class="text-danger mb-3">🏠 Despesas Fixas</h6>
+                        {% if fixed_expense_categories %}
+                            <div class="category-tree">
+                                {% for category in fixed_expense_categories %}
+                                <div class="category-item mb-2">
+                                    <div class="d-flex justify-content-between align-items-center p-2 border rounded category-header" 
+                                         data-category-id="{{ category.id }}">
+                                        <div class="d-flex align-items-center">
+                                            {% if category.children %}
+                                                <button class="btn btn-link btn-sm p-0 me-2 toggle-btn" onclick="toggleCategory({{ category.id }})" title="Expandir/Retrair">
+                                                    <i class="fas fa-chevron-right" id="icon-{{ category.id }}"></i>
+                                                </button>
+                                            {% else %}
+                                                <span class="me-4"></span>
+                                            {% endif %}
+                                            <span class="badge me-2" style="background-color: {{ category.color }}; width: 15px; height: 15px; border-radius: 50%;"></span>
+                                            <strong>{{ category.name }}</strong>
+                                        </div>
+                                        <div>
+                                            <a href="{{ url_for('edit_category', category_id=category.id) }}" 
+                                               class="btn btn-outline-primary btn-sm" title="Editar">✏️</a>
+                                            <a href="{{ url_for('delete_category', category_id=category.id) }}" 
+                                               class="btn btn-outline-danger btn-sm" title="Excluir"
+                                               onclick="return confirm('Tem certeza que deseja excluir esta categoria?')">�️</a>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if category.children %}
+                                    <div class="subcategories ms-4" id="sub-{{ category.id }}" style="display: none;">
+                                        {% for subcategory in category.children %}
+                                        <div class="d-flex justify-content-between align-items-center p-2 border-start border-2 ps-3 mt-1 subcategory-item">
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge me-2" style="background-color: {{ subcategory.color }}; width: 12px; height: 12px; border-radius: 50%;"></span>
+                                                <span>{{ subcategory.name }}</span>
+                                            </div>
+                                            <div>
+                                                <a href="{{ url_for('edit_category', category_id=subcategory.id) }}" 
+                                                   class="btn btn-outline-primary btn-sm" title="Editar">✏️</a>
+                                                <a href="{{ url_for('delete_category', category_id=subcategory.id) }}" 
+                                                   class="btn btn-outline-danger btn-sm" title="Excluir"
+                                                   onclick="return confirm('Tem certeza que deseja excluir esta subcategoria?')">🗑️</a>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">Nenhuma categoria de despesa fixa encontrada.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-primary">🔙 Voltar ao Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleCategory(categoryId) {
+    const subcategories = document.getElementById('sub-' + categoryId);
+    const icon = document.getElementById('icon-' + categoryId);
+    
+    if (subcategories.style.display === 'none') {
+        subcategories.style.display = 'block';
+        icon.className = 'fas fa-chevron-down';
+    } else {
+        subcategories.style.display = 'none';
+        icon.className = 'fas fa-chevron-right';
+    }
+}
+
+function expandAll() {
+    document.querySelectorAll('.subcategories').forEach(function(element) {
+        element.style.display = 'block';
+    });
+    document.querySelectorAll('.toggle-btn i').forEach(function(icon) {
+        icon.className = 'fas fa-chevron-down';
+    });
+}
+
+function collapseAll() {
+    document.querySelectorAll('.subcategories').forEach(function(element) {
+        element.style.display = 'none';
+    });
+    document.querySelectorAll('.toggle-btn i').forEach(function(icon) {
+        icon.className = 'fas fa-chevron-right';
+    });
+}
+
+// Estilos CSS adicionais
+document.head.insertAdjacentHTML('beforeend', `
+<style>
+.category-header {
+    background-color: #f8f9fa;
+    transition: background-color 0.2s;
+}
+
+.category-header:hover {
+    background-color: #e9ecef;
+}
+
+.subcategory-item {
+    background-color: #fff;
+    border-left-color: #dee2e6 !important;
+    transition: background-color 0.2s;
+}
+
+.subcategory-item:hover {
+    background-color: #f8f9fa;
+}
+
+.toggle-btn {
+    border: none !important;
+    color: #6c757d;
+    transition: transform 0.2s;
+}
+
+.toggle-btn:hover {
+    color: #495057;
+    transform: scale(1.1);
+}
+
+.category-tree {
+    max-height: 600px;
+    overflow-y: auto;
+}
+</style>
+`);
+</script>
+{% endblock %}

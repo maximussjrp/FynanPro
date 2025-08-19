@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>📈 Indicadores Financeiros</h1>
+    </div>
+</div>
+
+<!-- Métricas Gerais -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-primary">📊 Total de Transações</h5>
+                <h3 class="text-primary">{{ total_transactions }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-info">💱 Valor Médio</h5>
+                <h3 class="text-info">R$ {{ "%.2f"|format(avg_transaction) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success">📈 Maior Receita</h5>
+                <h3 class="text-success">R$ {{ "%.2f"|format(biggest_income) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-danger">📉 Maior Despesa</h5>
+                <h3 class="text-danger">R$ {{ "%.2f"|format(biggest_expense) }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráfico de Evolução Mensal -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">📊 Evolução Mensal (Últimos 12 Meses)</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Mês</th>
+                                <th class="text-success">Receitas</th>
+                                <th class="text-danger">Despesas</th>
+                                <th>Saldo</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for month_data in monthly_data %}
+                            <tr>
+                                <td><strong>{{ month_data.month }}</strong></td>
+                                <td class="text-success">R$ {{ "%.2f"|format(month_data.income) }}</td>
+                                <td class="text-danger">R$ {{ "%.2f"|format(month_data.expense) }}</td>
+                                <td class="{{ 'text-success' if month_data.balance >= 0 else 'text-danger' }}">
+                                    R$ {{ "%.2f"|format(month_data.balance) }}
+                                </td>
+                                <td>
+                                    {% if month_data.balance >= 0 %}
+                                        <span class="badge bg-success">✅ Positivo</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">❌ Negativo</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top 5 Categorias de Despesas -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">🔝 Top 5 Categorias de Despesas (Mês Atual)</h5>
+            </div>
+            <div class="card-body">
+                {% if top_expense_categories %}
+                    {% for category, total in top_expense_categories %}
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h6 class="mb-0">{{ category }}</h6>
+                            <small class="text-muted">
+                                {{ "%.1f"|format((total/top_expense_categories[0][1]*100) if top_expense_categories else 0) }}% do total
+                            </small>
+                        </div>
+                        <span class="badge bg-danger fs-6">R$ {{ "%.2f"|format(total) }}</span>
+                    </div>
+                    <div class="progress mb-3">
+                        <div class="progress-bar bg-danger" role="progressbar" 
+                             style="width: {{ (total/top_expense_categories[0][1]*100) if top_expense_categories else 0 }}%"></div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted text-center">📝 Nenhuma despesa encontrada neste mês.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Gastos Diários (Últimos 30 dias) -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">📅 Gastos Diários (Últimos 30 Dias)</h5>
+            </div>
+            <div class="card-body">
+                <div style="max-height: 400px; overflow-y: auto;">
+                    {% for day_data in daily_expenses[-10:] %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>{{ day_data.date }}</span>
+                        <span class="badge {{ 'bg-danger' if day_data.amount > 0 else 'bg-secondary' }}">
+                            R$ {{ "%.2f"|format(day_data.amount) }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <hr>
+                <div class="text-center">
+                    <p class="mb-1"><strong>Média dos últimos 30 dias:</strong></p>
+                    <h5 class="text-info">R$ {{ "%.2f"|format(daily_expenses|map(attribute='amount')|sum / 30) }}</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumo de Tendências -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">📊 Resumo de Tendências</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <h6>💰 Melhor Mês (Receitas)</h6>
+                        {% set best_income_month = monthly_data|sort(attribute='income', reverse=true)|first %}
+                        <p class="text-success">
+                            <strong>{{ best_income_month.month if best_income_month else 'N/A' }}</strong><br>
+                            R$ {{ "%.2f"|format(best_income_month.income if best_income_month else 0) }}
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h6>💸 Pior Mês (Despesas)</h6>
+                        {% set worst_expense_month = monthly_data|sort(attribute='expense', reverse=true)|first %}
+                        <p class="text-danger">
+                            <strong>{{ worst_expense_month.month if worst_expense_month else 'N/A' }}</strong><br>
+                            R$ {{ "%.2f"|format(worst_expense_month.expense if worst_expense_month else 0) }}
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h6>📈 Melhor Saldo</h6>
+                        {% set best_balance_month = monthly_data|sort(attribute='balance', reverse=true)|first %}
+                        <p class="{{ 'text-success' if best_balance_month and best_balance_month.balance >= 0 else 'text-danger' }}">
+                            <strong>{{ best_balance_month.month if best_balance_month else 'N/A' }}</strong><br>
+                            R$ {{ "%.2f"|format(best_balance_month.balance if best_balance_month else 0) }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="text-center">
+    <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-lg">🔙 Voltar ao Dashboard</a>
+</div>
+{% endblock %}

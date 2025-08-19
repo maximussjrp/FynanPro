@@ -1,0 +1,983 @@
+{% extends "base.html" %}
+
+{% block title %}Análise de Categorias{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap4.min.css" rel="stylesheet">
+<style>
+    /* 🔍 MELHORIAS DE ACESSIBILIDADE VISUAL */
+    .card-header-custom {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        color: #ffffff;
+        border: 2px solid #34495e;
+        font-weight: 600;
+    }
+    
+    .expand-icon {
+        transition: transform 0.3s ease;
+        cursor: pointer;
+        font-size: 1.4em;
+        color: #2c3e50;
+        padding: 8px;
+        border-radius: 50%;
+        background-color: #ecf0f1;
+        border: 2px solid #bdc3c7;
+    }
+    
+    .expand-icon:hover {
+        background-color: #3498db;
+        color: #ffffff;
+        transform: scale(1.2);
+        border-color: #2980b9;
+    }
+    
+    .expand-icon.expanded {
+        transform: rotate(90deg);
+        color: #e74c3c;
+        background-color: #fadbd8;
+        border-color: #e74c3c;
+    }
+    
+    .subcategory-row {
+        background-color: #ecf0f1;
+        font-style: italic;
+        border-left: 4px solid #3498db;
+    }
+    
+    .category-color {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 12px;
+        border: 3px solid #2c3e50;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+    }
+    
+    .percentage-bar {
+        background: linear-gradient(90deg, #e74c3c 0%, #c0392b 100%);
+        height: 12px;
+        border-radius: 6px;
+        transition: width 0.5s ease;
+        border: 1px solid #2c3e50;
+    }
+    
+    .chart-container {
+        background: #ffffff;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 25px;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        position: relative;
+        height: 450px;
+        border: 2px solid #bdc3c7;
+    }
+    
+    /* 👁️ MELHORIAS ADICIONAIS DE ACESSIBILIDADE */
+    .card {
+        border: 2px solid #34495e;
+        font-size: 1.1em;
+    }
+    
+    .table {
+        font-size: 1.1em;
+        border: 2px solid #bdc3c7;
+    }
+    
+    .table th {
+        background-color: #2c3e50;
+        color: #ffffff;
+        font-weight: 700;
+        border: 1px solid #34495e;
+        padding: 15px;
+    }
+    
+    .table td {
+        border: 1px solid #bdc3c7;
+        padding: 12px;
+        vertical-align: middle;
+    }
+    
+    .table-hover tbody tr:hover {
+        background-color: #f8f9fa;
+        border-left: 5px solid #e74c3c;
+    }
+    
+    /* 👆 Linhas clicáveis para expansão */
+    .category-row.expandable {
+        cursor: pointer;
+        background-color: #f8f9fa;
+        border-left: 3px solid #3498db;
+    }
+    
+    .category-row.expandable:hover {
+        background-color: #e3f2fd;
+        border-left: 5px solid #2196f3;
+        transform: translateX(3px);
+    }
+    
+    .btn {
+        font-size: 1.1em;
+        font-weight: 600;
+        border: 2px solid;
+        padding: 10px 20px;
+    }
+    
+    .btn-primary {
+        background-color: #2c3e50;
+        border-color: #2c3e50;
+        color: #ffffff;
+    }
+    
+    .btn-success {
+        background-color: #27ae60;
+        border-color: #27ae60;
+        color: #ffffff;
+    }
+    
+    .badge {
+        font-size: 1em;
+        padding: 8px 12px;
+        border: 1px solid;
+    }
+    
+    .badge-info {
+        background-color: #3498db;
+        color: #ffffff;
+        border-color: #2980b9;
+    }
+    
+    .badge-success {
+        background-color: #27ae60;
+        color: #ffffff;
+        border-color: #229954;
+    }
+    
+    .badge-warning {
+        background-color: #f39c12;
+        color: #000000;
+        border-color: #e67e22;
+    }
+    
+    .badge-secondary {
+        background-color: #95a5a6;
+        color: #000000;
+        border-color: #7f8c8d;
+    }
+    
+    /* Melhorar contraste dos textos */
+    h1, h2, h3, h4, h5, h6 {
+        color: #2c3e50;
+        font-weight: 700;
+    }
+    
+    .text-muted {
+        color: #5d6d7e !important;
+        font-weight: 500;
+    }
+    
+    .text-primary {
+        color: #2c3e50 !important;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header com acesso ao Analytics Avançado -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header card-header-custom d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="mb-0">
+                            <i class="fas fa-chart-pie mr-3"></i>
+                            Análise de Categorias
+                        </h1>
+                        <p class="mb-0 mt-2">Análise detalhada dos gastos por categoria</p>
+                    </div>
+                    <div>
+                        <button class="btn btn-info btn-lg mr-2" onclick="toggleAccessibilityMode()" title="Modo Alto Contraste">
+                            <i class="fas fa-eye mr-2"></i>
+                            <span class="d-none d-md-inline" id="accessibilityText">Alto Contraste</span>
+                        </button>
+                        <button class="btn btn-warning btn-lg mr-2" onclick="increaseFontSize()" title="Aumentar Fonte">
+                            <i class="fas fa-search-plus mr-2"></i>
+                            <span class="d-none d-md-inline">A+</span>
+                        </button>
+                        <a href="/advanced-analytics" class="btn btn-light btn-lg mr-2" title="Analytics Avançado com IA">
+                            <i class="fas fa-robot mr-2"></i>
+                            <span class="d-none d-md-inline">Analytics IA</span>
+                        </a>
+                        <button class="btn btn-success btn-lg" onclick="exportCategoryData()" title="Exportar Dados">
+                            <i class="fas fa-download mr-2"></i>
+                            <span class="d-none d-md-inline">Exportar</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-filter mr-2"></i>Filtros</h5>
+                </div>
+                <div class="card-body">
+                    <form method="GET" id="filterForm">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="period">Período</label>
+                                <select class="form-control" name="period" id="period">
+                                    <option value="current_month" {% if period == 'current_month' %}selected{% endif %}>Mês Atual</option>
+                                    <option value="last_month" {% if period == 'last_month' %}selected{% endif %}>Mês Passado</option>
+                                    <option value="current_year" {% if period == 'current_year' %}selected{% endif %}>Ano Atual</option>
+                                    <option value="last_year" {% if period == 'last_year' %}selected{% endif %}>Ano Passado</option>
+                                    <option value="last_3_months" {% if period == 'last_3_months' %}selected{% endif %}>Últimos 3 Meses</option>
+                                    <option value="last_6_months" {% if period == 'last_6_months' %}selected{% endif %}>Últimos 6 Meses</option>
+                                    <option value="last_12_months" {% if period == 'last_12_months' %}selected{% endif %}>Últimos 12 Meses</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="type">Tipo</label>
+                                <select class="form-control" name="type" id="type">
+                                    <option value="expense" {% if type == 'expense' %}selected{% endif %}>Despesas</option>
+                                    <option value="income" {% if type == 'income' %}selected{% endif %}>Receitas</option>
+                                    <option value="both" {% if type == 'both' %}selected{% endif %}>Ambos</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="account">Conta</label>
+                                <select class="form-control" name="account" id="account">
+                                    <option value="">Todas as Contas</option>
+                                    {% for account in accounts %}
+                                    <option value="{{ account.id }}" {% if selected_account == account.id|string %}selected{% endif %}>
+                                        {{ account.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label>&nbsp;</label>
+                                <div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-search mr-2"></i>Filtrar
+                                    </button>
+                                    <a href="{{ url_for('category_analysis') }}" class="btn btn-secondary">
+                                        <i class="fas fa-times mr-2"></i>Limpar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Indicadores principais -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-primary">{{ total_categories }}</h4>
+                    <p class="text-muted mb-0">Categorias com Movimento</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-primary">R$ {{ "%.2f"|format(total_amount) }}</h4>
+                    <p class="text-muted mb-0">Total do Período</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-primary">R$ {{ "%.2f"|format(average_per_category) }}</h4>
+                    <p class="text-muted mb-0">Média por Categoria</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-primary">{{ "%.1f"|format(highest_percentage) }}%</h4>
+                    <p class="text-muted mb-0">Maior Participação</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráficos Modernizados -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h5 class="chart-title mb-3">
+                    <i class="fas fa-chart-pie mr-2"></i>
+                    📊 Distribuição por Categoria
+                    <span class="badge badge-info ml-2">Plotly Interactive</span>
+                </h5>
+                <div id="categoryPieChart" style="height: 350px;"></div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h5 class="chart-title mb-3">
+                    <i class="fas fa-chart-bar mr-2"></i>
+                    📈 Top 10 Categorias
+                    <span class="badge badge-success ml-2">Advanced Analytics</span>
+                </h5>
+                <div id="categoryBarChart" style="height: 350px;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Novo Gráfico: Treemap de Categorias -->
+    {% if categories_data|length > 0 %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="chart-container">
+                <h5 class="chart-title mb-3">
+                    <i class="fas fa-sitemap mr-2"></i>
+                    🗺️ Mapa Hierárquico de Gastos
+                    <span class="badge badge-warning ml-2">Python 3.13.5</span>
+                </h5>
+                <div id="categoryTreeMap" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Debug info (remover depois) -->
+    <div class="row mb-2">
+        <div class="col-12">
+            <small class="text-muted">
+                Debug: {{ categories_data|length if categories_data else 0 }} categorias encontradas
+                {% if categories_data and categories_data|length > 0 %}
+                | Primeira categoria: {{ categories_data[0].category }} (R$ {{ "%.2f"|format(categories_data[0].total) }})
+                {% endif %}
+            </small>
+        </div>
+    </div>
+
+    <!-- Tabela de Categorias -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-table mr-2"></i>
+                        Detalhamento por Categoria
+                        <small class="float-right">{{ period_name }}</small>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0" id="categoryTable">
+                        <thead>
+                            <tr>
+                                <th width="5%"></th>
+                                <th width="30%">Categoria</th>
+                                <th width="15%">Quantidade</th>
+                                <th width="20%">Valor Total</th>
+                                <th width="15%">Participação</th>
+                                <th width="15%">Valor Médio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category_data in categories_data %}
+                            <tr class="category-row {% if category_data.subcategories %}expandable{% endif %}" data-category="{{ category_data.category }}">
+                                <td>
+                                    {% if category_data.subcategories %}
+                                    <i class="fas fa-chevron-right expand-icon" data-category="{{ category_data.category }}" title="Clique para expandir subcategorias"></i>
+                                    {% else %}
+                                    <i class="fas fa-circle text-muted" style="font-size: 0.8rem; opacity: 0.3;"></i>
+                                    {% endif %}
+                                </td>
+                                <td style="{% if category_data.subcategories %}cursor: pointer; background-color: #f8f9fa;{% endif %}">
+                                    <span class="category-color" style="background-color: {{ category_data.color or '#007bff' }}"></span>
+                                    <strong>{{ category_data.category }}</strong>
+                                    {% if category_data.subcategories %}
+                                    <small class="text-primary ml-2 font-weight-bold">({{ category_data.subcategories|length }} subcategorias) 👆 Clique para expandir</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge badge-info">{{ category_data.count }}</span>
+                                </td>
+                                <td>
+                                    <strong>R$ {{ "%.2f"|format(category_data.total) }}</strong>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <span class="mr-2">{{ "%.1f"|format(category_data.percentage) }}%</span>
+                                        <div class="flex-grow-1 bg-light rounded" style="height: 8px;">
+                                            <div class="percentage-bar" style="width: {{ category_data.percentage }}%;"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>R$ {{ "%.2f"|format(category_data.average) }}</td>
+                            </tr>
+                            {% for sub in category_data.subcategories %}
+                            <tr class="subcategory-row d-none" data-parent="{{ category_data.category }}">
+                                <td></td>
+                                <td>
+                                    <span class="ml-4">
+                                        <i class="fas fa-level-down-alt mr-2 text-muted"></i>
+                                        <span class="category-color" style="background-color: {{ sub.color or '#007bff' }}; width: 15px; height: 15px;"></span>
+                                        {{ sub.category }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-secondary">{{ sub.count }}</span>
+                                </td>
+                                <td>R$ {{ "%.2f"|format(sub.total) }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <span class="mr-2">{{ "%.1f"|format(sub.percentage) }}%</span>
+                                        <div class="flex-grow-1 bg-light rounded" style="height: 6px;">
+                                            <div class="percentage-bar" style="width: {{ sub.percentage }}%; height: 6px;"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>R$ {{ "%.2f"|format(sub.average) }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- ✅ Carregar bibliotecas necessárias -->
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap4.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<script>
+// 📊 DADOS das categorias vindos do backend
+window.categoriesChartData = [
+    {% for cat in categories_data %}
+    {
+        name: "{{ cat.category|replace('"', '\\"') }}",
+        value: {{ cat.total }},
+        percentage: {{ "%.1f"|format(cat.percentage) }},
+        color: "{{ cat.color or '#007bff' }}",
+        count: {{ cat.count }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+console.log('🔍 DEBUG: Total de categorias carregadas:', {{ categories_data|length }});
+console.log('📊 DEBUG: Dados dos gráficos:', window.categoriesChartData);
+
+$(document).ready(function() {
+    console.log('🚀 Category Analysis loaded with Python 3.13.5 + Modern Charts');
+    console.log('👁️ ACESSIBILIDADE VISUAL MELHORADA - Cores de alto contraste aplicadas');
+    console.log('📊 Data:', window.categoriesChartData);
+    console.log('🔍 DEBUG: Verificando categorias com subcategorias...');
+    
+    // Debug: Listar categorias com subcategorias
+    $('.category-row.expandable').each(function() {
+        const category = $(this).data('category');
+        const subcategoryRows = $('tr[data-parent="' + category + '"]');
+        console.log('📁 Categoria expandível:', category, 'Subcategorias:', subcategoryRows.length);
+    });
+    
+    // ✅ CORREÇÃO DEFINITIVA: Expandir subcategorias (simplificado)
+    $(document).on('click', '.expand-icon', function(e) {
+        e.stopPropagation();
+        
+        const $icon = $(this);
+        const category = $icon.data('category');
+        const $subcategories = $('tr[data-parent="' + category + '"]');
+        
+        console.log('�️ CLIQUE no ícone da categoria:', category);
+        console.log('� Subcategorias encontradas:', $subcategories.length);
+        
+        if ($subcategories.length === 0) {
+            alert('Esta categoria não possui subcategorias para exibir.');
+            return;
+        }
+        
+        if ($icon.hasClass('fa-chevron-right')) {
+            // EXPANDIR
+            console.log('� EXPANDINDO categoria:', category);
+            $icon.removeClass('fa-chevron-right').addClass('fa-chevron-down expanded');
+            $subcategories.removeClass('d-none').show();
+        } else {
+            // RETRAIR  
+            console.log('� RETRAINDO categoria:', category);
+            $icon.removeClass('fa-chevron-down expanded').addClass('fa-chevron-right');
+            $subcategories.addClass('d-none').hide();
+        }
+    });
+    
+    // ✅ CLIQUE na linha inteira para expandir
+    $(document).on('click', '.category-row.expandable', function(e) {
+        // Evitar duplo clique se clicou no ícone
+        if ($(e.target).hasClass('expand-icon')) return;
+        
+        const $icon = $(this).find('.expand-icon');
+        if ($icon.length > 0) {
+            console.log('👆 CLIQUE na linha - acionando ícone');
+            $icon.trigger('click');
+        }
+    });
+    
+    // Auto-submit filtros com loading
+    $('#period, #type, #account').change(function() {
+        const $form = $('#filterForm');
+        const $button = $form.find('button[type="submit"]');
+        
+        $button.html('<i class="fas fa-spinner fa-spin mr-2"></i>Filtrando...');
+        $form.submit();
+    });
+    
+    // ✅ CORREÇÃO: Inicializar DataTable sem interferir na expansão
+    if ($('#categoryTable').length > 0) {
+        $('#categoryTable').DataTable({
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json"
+            },
+            "order": [[ 3, "desc" ]],
+            "pageLength": 50, // Mostrar mais linhas
+            "responsive": true,
+            "dom": '<"top"f>rt<"bottom"ip>',
+            "columnDefs": [
+                { 
+                    "orderable": false, 
+                    "targets": 0, // Primeira coluna (ícones)
+                    "className": "no-click" 
+                }
+            ],
+            "drawCallback": function() {
+                // Reativar eventos após redesenho da tabela
+                console.log('🔄 DataTable redesenhada, reativando eventos');
+            }
+        });
+    }
+    
+    // Criar gráficos modernos se temos dados
+    if (window.categoriesChartData && window.categoriesChartData.length > 0) {
+        createModernCharts();
+    } else {
+        showNoDataMessage();
+    }
+    
+    // Adicionar tooltips Bootstrap
+    $('[data-toggle="tooltip"]').tooltip();
+});
+
+function createModernCharts() {
+    const data = window.categoriesChartData;
+    
+    console.log('🎨 Criando gráficos modernos com', data.length, 'categorias');
+    console.log('📊 Dados completos:', data);
+    
+    if (!data || data.length === 0) {
+        console.log('⚠️ Nenhum dado disponível para os gráficos');
+        showNoDataMessage();
+        return;
+    }
+    
+    // Usar apenas top 10 para os gráficos para melhor visualização
+    const top10Data = data.slice(0, 10);
+    const labels = top10Data.map(item => item.name);
+    const values = top10Data.map(item => parseFloat(item.value));
+    const percentages = top10Data.map(item => parseFloat(item.percentage));
+    
+    // Cores com melhor contraste
+    const colors = [
+        '#000000', '#FF0000', '#00AA00', '#0066CC', '#FF6600',
+        '#9900CC', '#FFCC00', '#CC0066', '#006600', '#FF3333'
+    ];
+    
+    console.log('📈 Labels:', labels);
+    console.log('💰 Values:', values);
+    console.log('📊 Percentages:', percentages);
+    
+    // Gráfico Pizza Interativo com Plotly
+    const pieData = [{
+        values: values,
+        labels: labels,
+        type: 'pie',
+        textinfo: 'label+percent',
+        textposition: 'outside',
+        automargin: true,
+        marker: {
+            colors: colors,
+            line: {
+                color: '#FFFFFF',
+                width: 2
+            }
+        },
+        hovertemplate: '<b>%{label}</b><br>' +
+                      'Valor: R$ %{value:,.2f}<br>' +
+                      'Participação: %{percent}<br>' +
+                      '<extra></extra>'
+    }];
+    
+    const pieLayout = {
+        title: {
+            text: '🥧 Distribuição Interativa',
+            font: { 
+                size: 18, 
+                color: '#2c3e50',
+                family: 'Arial Black, sans-serif'
+            }
+        },
+        showlegend: true,
+        legend: {
+            font: { 
+                size: 14,
+                color: '#2c3e50'
+            }
+        },
+        margin: { t: 60, b: 60, l: 60, r: 60 },
+        paper_bgcolor: '#ffffff',
+        plot_bgcolor: '#ffffff'
+    };
+    
+    Plotly.newPlot('categoryPieChart', pieData, pieLayout, {
+        responsive: true,
+        displayModeBar: false
+    });
+    
+    // Gráfico Barras Horizontal Interativo
+    const barData = [{
+        x: values,
+        y: labels,
+        type: 'bar',
+        orientation: 'h',
+        marker: {
+            color: colors,
+            opacity: 0.8,
+            line: {
+                color: colors,
+                width: 1
+            }
+        },
+        hovertemplate: '<b>%{y}</b><br>' +
+                      'Valor: R$ %{x:,.2f}<br>' +
+                      '<extra></extra>'
+    }];
+    
+    const barLayout = {
+        title: {
+            text: '📊 Ranking de Categorias',
+            font: { 
+                size: 18, 
+                color: '#2c3e50',
+                family: 'Arial Black, sans-serif'
+            }
+        },
+        xaxis: {
+            title: {
+                text: 'Valor (R$)',
+                font: { size: 14, color: '#2c3e50' }
+            },
+            tickformat: ',.0f',
+            gridcolor: '#bdc3c7',
+            gridwidth: 2
+        },
+        yaxis: {
+            title: {
+                text: 'Categorias',
+                font: { size: 14, color: '#2c3e50' }
+            },
+            automargin: true,
+            gridcolor: '#bdc3c7',
+            gridwidth: 2
+        },
+        margin: { t: 60, b: 60, l: 180, r: 60 },
+        paper_bgcolor: '#ffffff',
+        plot_bgcolor: '#ffffff',
+        showlegend: false
+    };
+    
+    Plotly.newPlot('categoryBarChart', barData, barLayout, {
+        responsive: true,
+        displayModeBar: false
+    });
+    
+    // Novo: Treemap Hierárquico
+    if (data.length > 3) {  // Só criar se temos dados suficientes
+        const treemapData = [{
+            type: "treemap",
+            labels: labels,
+            values: values,
+            parents: Array(labels.length).fill(""),
+            textinfo: "label+value+percent root",
+            textfont: { size: 12, color: "#FFFFFF" },
+            marker: {
+                colors: colors,
+                line: { width: 2, color: "#FFFFFF" }
+            },
+            hovertemplate: '<b>%{label}</b><br>' +
+                          'Valor: R$ %{value:,.2f}<br>' +
+                          'Participação: %{percentRoot}<br>' +
+                          '<extra></extra>'
+        }];
+        
+        const treemapLayout = {
+            title: {
+                text: '🗺️ Mapa Hierárquico de Gastos',
+                font: { 
+                    size: 18, 
+                    color: '#2c3e50',
+                    family: 'Arial Black, sans-serif'
+                }
+            },
+            margin: { t: 60, b: 30, l: 30, r: 30 },
+            paper_bgcolor: '#ffffff',
+            font: { 
+                family: "Arial Black, sans-serif",
+                size: 14,
+                color: '#2c3e50'
+            }
+        };
+        
+        Plotly.newPlot('categoryTreeMap', treemapData, treemapLayout, {
+            responsive: true,
+            displayModeBar: false
+        });
+    }
+    
+    console.log('✅ All modern charts created successfully');
+}
+
+function showNoDataMessage() {
+    const containers = [
+        { id: 'categoryPieChart', icon: 'pie', title: 'Distribuição' },
+        { id: 'categoryBarChart', icon: 'bar', title: 'Ranking' },
+        { id: 'categoryTreeMap', icon: 'sitemap', title: 'Mapa Hierárquico' }
+    ];
+    
+    containers.forEach(container => {
+        const element = document.getElementById(container.id);
+        if (element) {
+            element.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-${container.icon} fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Nenhum dado encontrado</h5>
+                    <p class="text-muted">Adicione transações para visualizar ${container.title.toLowerCase()}</p>
+                    <a href="{{ url_for('add_transaction') }}" class="btn btn-primary">
+                        <i class="fas fa-plus mr-2"></i>Adicionar Transação
+                    </a>
+                </div>
+            `;
+        }
+    });
+}
+
+// Função para exportar dados
+function exportCategoryData() {
+    const data = window.categoriesChartData;
+    if (!data || data.length === 0) {
+        alert('Nenhum dado para exportar');
+        return;
+    }
+    
+    // Converter para CSV
+    let csv = 'Categoria,Valor,Percentual,Quantidade\n';
+    data.forEach(item => {
+        csv += `"${item.name}",${item.value},${item.percentage.toFixed(1)}%,${item.count}\n`;
+    });
+    
+    // Download do arquivo
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = 'analise_categorias.csv';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+// Animações suaves para os cards
+$('.metric-card, .chart-container').each(function(index) {
+    $(this).css('animation-delay', (index * 0.1) + 's');
+    $(this).addClass('fadeInUp');
+});
+
+// 👁️ FUNÇÕES DE ACESSIBILIDADE
+let isHighContrast = false;
+let currentFontSize = 1;
+
+function toggleAccessibilityMode() {
+    isHighContrast = !isHighContrast;
+    const body = document.body;
+    
+    if (isHighContrast) {
+        body.style.background = '#000000';
+        body.style.color = '#FFFFFF';
+        $('.card').css({
+            'background-color': '#1a1a1a',
+            'border': '3px solid #FFFFFF',
+            'color': '#FFFFFF'
+        });
+        $('.chart-container').css({
+            'background-color': '#1a1a1a',
+            'border': '3px solid #FFFFFF'
+        });
+        $('.table').css({
+            'background-color': '#1a1a1a',
+            'color': '#FFFFFF'
+        });
+        $('#accessibilityText').text('Modo Normal');
+        console.log('👁️ Modo Alto Contraste ATIVADO');
+    } else {
+        body.style.background = '';
+        body.style.color = '';
+        $('.card').css({
+            'background-color': '',
+            'border': '',
+            'color': ''
+        });
+        $('.chart-container').css({
+            'background-color': '',
+            'border': ''
+        });
+        $('.table').css({
+            'background-color': '',
+            'color': ''
+        });
+        $('#accessibilityText').text('Alto Contraste');
+        console.log('👁️ Modo Normal ATIVADO');
+    }
+}
+
+function increaseFontSize() {
+    currentFontSize += 0.1;
+    if (currentFontSize > 1.5) currentFontSize = 1; // Reset após 1.5x
+    
+    document.body.style.fontSize = currentFontSize + 'em';
+    console.log('🔍 Tamanho da fonte:', currentFontSize + 'em');
+    
+    // Feedback visual
+    const btn = event.target.closest('button');
+    btn.style.transform = 'scale(1.1)';
+    setTimeout(() => {
+        btn.style.transform = '';
+    }, 200);
+}
+</script>
+
+<style>
+/* 🎨 ACESSIBILIDADE VISUAL APRIMORADA */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fadeInUp {
+    animation: fadeInUp 0.6s ease forwards;
+}
+
+.chart-container:hover {
+    transform: translateY(-5px);
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+
+.metric-card {
+    transition: all 0.3s ease;
+    border: 2px solid #bdc3c7;
+}
+
+.metric-card:hover {
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    border-color: #2c3e50;
+}
+
+/* 🏷️ Melhorar badges com mais contraste */
+.badge {
+    font-size: 1em;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* 🔄 Loading animation melhorada */
+.loading {
+    position: relative;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 30px;
+    height: 30px;
+    margin: -15px 0 0 -15px;
+    border: 4px solid #ecf0f1;
+    border-top: 4px solid #e74c3c;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 📊 Melhorar visualização dos gráficos */
+.chart-title {
+    color: #2c3e50;
+    font-weight: 700;
+    font-size: 1.3em;
+    border-bottom: 3px solid #e74c3c;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+/* 🔍 Zoom nos elementos pequenos */
+.category-color {
+    transition: transform 0.2s ease;
+}
+
+.category-color:hover {
+    transform: scale(1.3);
+}
+
+/* 📱 Responsividade melhorada */
+@media (max-width: 768px) {
+    .chart-container {
+        height: 350px;
+        padding: 15px;
+    }
+    
+    .table {
+        font-size: 1em;
+    }
+    
+    .btn {
+        font-size: 1em;
+        padding: 8px 15px;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Saúde Financeira{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-heartbeat me-2"></i>Indicadores de Saúde Financeira
+                    </h4>
+                </div>
+                <div class="card-body">
+                    
+                    <!-- Score Financeiro -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card border-{{ score_color }}">
+                                <div class="card-body text-center">
+                                    <h2 class="text-{{ score_color }}">{{ "%.0f"|format(financial_score) }}/100</h2>
+                                    <h5 class="text-{{ score_color }}">{{ score_level }}</h5>
+                                    <p class="text-muted mb-0">Score Financeiro</p>
+                                    <div class="progress mt-2">
+                                        <div class="progress-bar bg-{{ score_color }}" role="progressbar" 
+                                             style="width: {{ financial_score }}%" 
+                                             aria-valuenow="{{ financial_score }}" 
+                                             aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- % Receita Comprometida -->
+                        <div class="col-md-4">
+                            <div class="card border-{% if commitment_percentage < 70 %}success{% elif commitment_percentage < 80 %}warning{% else %}danger{% endif %}">
+                                <div class="card-body text-center">
+                                    <h2 class="text-{% if commitment_percentage < 70 %}success{% elif commitment_percentage < 80 %}warning{% else %}danger{% endif %}">
+                                        {{ "%.1f"|format(commitment_percentage) }}%
+                                    </h2>
+                                    <h5>Receita Comprometida</h5>
+                                    <p class="text-muted mb-0">Gastos / Receita do Mês</p>
+                                    <small class="text-muted">
+                                        {% if commitment_percentage < 70 %}
+                                            ✅ Excelente controle
+                                        {% elif commitment_percentage < 80 %}
+                                            ⚠️ Atenção moderada
+                                        {% else %}
+                                            🚨 Risco alto
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Saldo Atual -->
+                        <div class="col-md-4">
+                            <div class="card border-{% if (current_income - current_expenses) > 0 %}success{% else %}danger{% endif %}">
+                                <div class="card-body text-center">
+                                    <h2 class="text-{% if (current_income - current_expenses) > 0 %}success{% else %}danger{% endif %}">
+                                        R$ {{ "%.2f"|format(current_income - current_expenses) }}
+                                    </h2>
+                                    <h5>Saldo do Mês</h5>
+                                    <p class="text-muted mb-0">Receitas - Despesas</p>
+                                    <small class="text-success">Receita: R$ {{ "%.2f"|format(current_income) }}</small><br>
+                                    <small class="text-danger">Despesas: R$ {{ "%.2f"|format(current_expenses) }}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Médias por Período -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h5><i class="fas fa-chart-line me-2"></i>Saldos Médios por Período</h5>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title">Últimos 3 Meses</h6>
+                                    <p class="text-success mb-1">Receita Média: R$ {{ "%.2f"|format(income_3m) }}</p>
+                                    <p class="text-danger mb-1">Despesa Média: R$ {{ "%.2f"|format(expense_3m) }}</p>
+                                    <hr>
+                                    <p class="mb-0 {% if (income_3m - expense_3m) > 0 %}text-success{% else %}text-danger{% endif %}">
+                                        <strong>Saldo Médio: R$ {{ "%.2f"|format(income_3m - expense_3m) }}</strong>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title">Últimos 6 Meses</h6>
+                                    <p class="text-success mb-1">Receita Média: R$ {{ "%.2f"|format(income_6m) }}</p>
+                                    <p class="text-danger mb-1">Despesa Média: R$ {{ "%.2f"|format(expense_6m) }}</p>
+                                    <hr>
+                                    <p class="mb-0 {% if (income_6m - expense_6m) > 0 %}text-success{% else %}text-danger{% endif %}">
+                                        <strong>Saldo Médio: R$ {{ "%.2f"|format(income_6m - expense_6m) }}</strong>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title">Últimos 12 Meses</h6>
+                                    <p class="text-success mb-1">Receita Média: R$ {{ "%.2f"|format(income_12m) }}</p>
+                                    <p class="text-danger mb-1">Despesa Média: R$ {{ "%.2f"|format(expense_12m) }}</p>
+                                    <hr>
+                                    <p class="mb-0 {% if (income_12m - expense_12m) > 0 %}text-success{% else %}text-danger{% endif %}">
+                                        <strong>Saldo Médio: R$ {{ "%.2f"|format(income_12m - expense_12m) }}</strong>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Comparativo Mensal -->
+                    <div class="row">
+                        <div class="col-12">
+                            <h5><i class="fas fa-calendar-alt me-2"></i>Evolução dos Últimos 6 Meses</h5>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Mês</th>
+                                            <th class="text-end">Receitas</th>
+                                            <th class="text-end">Despesas</th>
+                                            <th class="text-end">Saldo</th>
+                                            <th class="text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for month_data in monthly_comparison %}
+                                        <tr>
+                                            <td><strong>{{ month_data.month }}</strong></td>
+                                            <td class="text-end text-success">R$ {{ "%.2f"|format(month_data.income) }}</td>
+                                            <td class="text-end text-danger">R$ {{ "%.2f"|format(month_data.expense) }}</td>
+                                            <td class="text-end {% if month_data.balance > 0 %}text-success{% else %}text-danger{% endif %}">
+                                                <strong>R$ {{ "%.2f"|format(month_data.balance) }}</strong>
+                                            </td>
+                                            <td class="text-center">
+                                                {% if month_data.balance > 0 %}
+                                                    <span class="badge bg-success">✓ Positivo</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger">✗ Negativo</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dicas e Recomendações -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-lightbulb me-2"></i>Dicas para Melhorar sua Saúde Financeira:</h6>
+                                <ul class="mb-0">
+                                    {% if commitment_percentage > 80 %}
+                                    <li>🎯 Seu comprometimento de renda está alto ({{ "%.1f"|format(commitment_percentage) }}%). Tente reduzir gastos não essenciais.</li>
+                                    {% endif %}
+                                    {% if (current_income - current_expenses) < 0 %}
+                                    <li>📊 Seu saldo mensal está negativo. Revise suas despesas e identifique onde cortar.</li>
+                                    {% endif %}
+                                    {% if financial_score < 60 %}
+                                    <li>💡 Para melhorar seu score financeiro, foque em manter receitas superiores às despesas.</li>
+                                    {% endif %}
+                                    <li>📈 Acompanhe regularmente seus indicadores para manter o controle financeiro.</li>
+                                    <li>💰 Considere criar uma reserva de emergência equivalente a 6 meses de gastos.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <a href="{{ url_for('index') }}" class="btn btn-primary">
+                            <i class="fas fa-arrow-left me-1"></i>Voltar ao Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

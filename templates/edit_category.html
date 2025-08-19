@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Categoria{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-edit me-2"></i>Editar Categoria
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="name" class="form-label">Nome da Categoria</label>
+                                    <input type="text" class="form-control" id="name" name="name" value="{{ category.name }}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="color" class="form-label">Cor</label>
+                                    <input type="color" class="form-control form-control-color" id="color" name="color" value="{{ category.color or '#007bff' }}">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="type" class="form-label">Tipo</label>
+                                    <select class="form-control" id="type" name="type" required>
+                                        <option value="income" {{ 'selected' if category.type == 'income' else '' }}>💰 Receita</option>
+                                        <option value="expense" {{ 'selected' if category.type == 'expense' else '' }}>💸 Despesa</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="sort_order" class="form-label">Ordem</label>
+                                    <input type="number" class="form-control" id="sort_order" name="sort_order" value="{{ category.sort_order or 0 }}" min="0">
+                                    <small class="form-text text-muted">Ordem de exibição (0 = primeiro)</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="parent_id" class="form-label">Categoria Pai (opcional)</label>
+                            <select class="form-control" id="parent_id" name="parent_id">
+                                <option value="">🏠 Categoria Principal (Nível 0)</option>
+                                {% if category.type == 'income' %}
+                                    {% for root_category in income_root_categories %}
+                                        <option value="{{ root_category.id }}" {{ 'selected' if category.parent_id == root_category.id else '' }}>
+                                            📂 {{ root_category.name }}
+                                        </option>
+                                    {% endfor %}
+                                {% elif category.type == 'expense' %}
+                                    {% for root_category in fixed_expense_root_categories %}
+                                        <option value="{{ root_category.id }}" {{ 'selected' if category.parent_id == root_category.id else '' }}>
+                                            📂 {{ root_category.name }}
+                                        </option>
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                            <small class="form-text text-muted">
+                                Deixe em branco para categoria principal ou selecione uma categoria para criar subcategoria.
+                            </small>
+                        </div>
+                        
+                        <div class="mb-3" id="expense_type_div" {% if category.type != 'expense' %}style="display: none;"{% endif %}>
+                            <label for="expense_type" class="form-label">Tipo de Despesa</label>
+                            <select class="form-control" id="expense_type" name="expense_type">
+                                <option value="fixed" {{ 'selected' if category.expense_type == 'fixed' else '' }}>🏠 Despesa Fixa</option>
+                            </select>
+                            <small class="form-text text-muted">Todas as despesas são classificadas como fixas</small>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('categories') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>Voltar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>Salvar Alterações
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const typeSelect = document.getElementById('type');
+    const expenseTypeDiv = document.getElementById('expense_type_div');
+    
+    typeSelect.addEventListener('change', function() {
+        if (this.value === 'expense') {
+            expenseTypeDiv.style.display = 'block';
+        } else {
+            expenseTypeDiv.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}

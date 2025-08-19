@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Perfil - Finance SaaS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .profile-card {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+        .avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: white;
+            margin: 0 auto;
+        }
+        .plan-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .plan-trial {
+            background: linear-gradient(135deg, #ff6b6b, #ffa500);
+            color: white;
+        }
+        .plan-free {
+            background: linear-gradient(135deg, #17a2b8, #20c997);
+            color: white;
+        }
+        .plan-premium {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+        .plan-enterprise {
+            background: linear-gradient(135deg, #6f42c1, #e83e8c);
+            color: white;
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            border: none;
+            color: white;
+            transition: transform 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .btn-action {
+            border-radius: 25px;
+            padding: 12px 25px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+        }
+        .btn-primary-custom:hover {
+            background: linear-gradient(135deg, #5a6fd8, #6a419a);
+            transform: translateY(-2px);
+            color: white;
+        }
+        .btn-warning-custom {
+            background: linear-gradient(135deg, #ffc107, #ff8c00);
+            color: white;
+            border: none;
+        }
+        .btn-warning-custom:hover {
+            background: linear-gradient(135deg, #e0a800, #e67e00);
+            transform: translateY(-2px);
+            color: white;
+        }
+        .btn-danger-custom {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+            border: none;
+        }
+        .btn-danger-custom:hover {
+            background: linear-gradient(135deg, #c82333, #bd2130);
+            transform: translateY(-2px);
+            color: white;
+        }
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+        .navbar {
+            background: rgba(0, 0, 0, 0.1) !important;
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-chart-line me-2"></i>Finance SaaS
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('categories') }}">
+                            <i class="fas fa-tags me-1"></i>Categorias
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('transactions') }}">
+                            <i class="fas fa-list me-1"></i>Transações
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('pricing') }}">
+                            <i class="fas fa-crown me-1"></i>Planos
+                        </a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle active" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-1"></i>{{ current_user.name }}
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('profile') }}">
+                                <i class="fas fa-user me-2"></i>Meu Perfil
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">
+                                <i class="fas fa-sign-out-alt me-2"></i>Sair
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <!-- Cabeçalho do Perfil -->
+        <div class="row justify-content-center mb-4">
+            <div class="col-lg-8">
+                <div class="card profile-card">
+                    <div class="card-body text-center p-5">
+                        <div class="avatar mb-3">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <h2 class="mb-2">{{ current_user.name }}</h2>
+                        <p class="text-muted mb-3">{{ current_user.email }}</p>
+                        
+                        <!-- Badge do Plano -->
+                        <div class="mb-4">
+                            {% if current_user.plan_type == 'trial' %}
+                                <span class="plan-badge plan-trial">
+                                    <i class="fas fa-gift me-1"></i>{{ current_user.get_plan_name() }}
+                                </span>
+                            {% elif current_user.plan_type == 'free' %}
+                                <span class="plan-badge plan-free">
+                                    <i class="fas fa-seedling me-1"></i>{{ current_user.get_plan_name() }}
+                                </span>
+                            {% elif current_user.plan_type in ['monthly', 'semester', 'annual'] %}
+                                <span class="plan-badge plan-premium">
+                                    <i class="fas fa-crown me-1"></i>{{ current_user.get_plan_name() }}
+                                </span>
+                            {% else %}
+                                <span class="plan-badge plan-enterprise">
+                                    <i class="fas fa-building me-1"></i>{{ current_user.get_plan_name() }}
+                                </span>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Informações do Plano -->
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <div class="stat-card card mb-3 p-3">
+                                    <h5><i class="fas fa-calendar-alt me-2"></i>Membro desde</h5>
+                                    <p class="mb-0">{{ current_user.created_at.strftime('%d/%m/%Y') }}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-card card mb-3 p-3">
+                                    <h5><i class="fas fa-clock me-2"></i>Último acesso</h5>
+                                    <p class="mb-0">
+                                        {% if current_user.last_login %}
+                                            {{ current_user.last_login.strftime('%d/%m/%Y') }}
+                                        {% else %}
+                                            Primeiro acesso
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-card card mb-3 p-3">
+                                    <h5><i class="fas fa-hourglass-half me-2"></i>Dias restantes</h5>
+                                    <p class="mb-0">
+                                        {% if current_user.plan_type == 'free' %}
+                                            Ilimitado
+                                        {% else %}
+                                            {{ current_user.days_remaining() }} dias
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ações do Perfil -->
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card profile-card">
+                    <div class="card-header bg-transparent border-0 text-center py-4">
+                        <h4><i class="fas fa-cog me-2"></i>Configurações da Conta</h4>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row">
+                            <!-- Editar Perfil -->
+                            <div class="col-md-6 mb-3">
+                                <div class="d-grid">
+                                    <a href="{{ url_for('edit_profile') }}" class="btn btn-action btn-primary-custom">
+                                        <i class="fas fa-edit"></i>
+                                        <span>Editar Perfil</span>
+                                    </a>
+                                </div>
+                                <p class="text-muted small mt-2 text-center">
+                                    Altere seu nome e e-mail
+                                </p>
+                            </div>
+                            
+                            <!-- Alterar Senha -->
+                            <div class="col-md-6 mb-3">
+                                <div class="d-grid">
+                                    <a href="{{ url_for('change_password') }}" class="btn btn-action btn-warning-custom">
+                                        <i class="fas fa-key"></i>
+                                        <span>Alterar Senha</span>
+                                    </a>
+                                </div>
+                                <p class="text-muted small mt-2 text-center">
+                                    Atualize sua senha de segurança
+                                </p>
+                            </div>
+                            
+                            <!-- Gerenciar Plano -->
+                            <div class="col-md-6 mb-3">
+                                <div class="d-grid">
+                                    <a href="{{ url_for('pricing') }}" class="btn btn-action btn-primary-custom">
+                                        <i class="fas fa-crown"></i>
+                                        <span>Gerenciar Plano</span>
+                                    </a>
+                                </div>
+                                <p class="text-muted small mt-2 text-center">
+                                    Upgrade ou mudança de plano
+                                </p>
+                            </div>
+                            
+                            <!-- Suporte -->
+                            <div class="col-md-6 mb-3">
+                                <div class="d-grid">
+                                    <a href="mailto:suporte@financesaas.com?subject=Suporte%20-%20{{ current_user.name }}" class="btn btn-action btn-primary-custom">
+                                        <i class="fas fa-life-ring"></i>
+                                        <span>Suporte</span>
+                                    </a>
+                                </div>
+                                <p class="text-muted small mt-2 text-center">
+                                    Precisa de ajuda? Fale conosco
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- Zona de Perigo -->
+                        <hr class="my-4">
+                        <div class="text-center">
+                            <h6 class="text-danger mb-3">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Zona de Perigo
+                            </h6>
+                            <p class="text-muted small mb-3">
+                                Ações irreversíveis que afetam permanentemente sua conta
+                            </p>
+                            <button class="btn btn-action btn-danger-custom" data-bs-toggle="modal" data-bs-target="#deleteAccountModal">
+                                <i class="fas fa-trash-alt"></i>
+                                <span>Excluir Conta</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação de Exclusão -->
+    <div class="modal fade" id="deleteAccountModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title text-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Excluir Conta
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>⚠️ Esta ação é irreversível!</strong></p>
+                    <p>Ao excluir sua conta, você perderá permanentemente:</p>
+                    <ul>
+                        <li>Todas as suas transações</li>
+                        <li>Suas categorias personalizadas</li>
+                        <li>Relatórios e histórico financeiro</li>
+                        <li>Configurações e preferências</li>
+                    </ul>
+                    <p class="text-danger">
+                        <strong>Tem certeza de que deseja continuar?</strong>
+                    </p>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Cancelar
+                    </button>
+                    <form method="POST" action="{{ url_for('delete_account') }}" style="display: inline;">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash-alt me-1"></i>Sim, excluir minha conta
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
