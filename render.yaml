@@ -3,7 +3,7 @@ services:
     name: fynanpro
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python init_db.py && gunicorn app:app --bind 0.0.0.0:$PORT"
+    startCommand: "python run.py"
     plan: free
     envVars:
       - key: SECRET_KEY

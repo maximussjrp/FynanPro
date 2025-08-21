@@ -8,4 +8,3 @@ WTForms==3.2.1
 stripe==5.5.0
 requests==2.31.0
 gunicorn==21.2.0
-pagarme-python==3.1.0

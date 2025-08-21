@@ -2,14 +2,22 @@
 Configuração do Pagar.me para o FynanPro
 """
 import os
-import pagarme
+import requests
 
 # Configurações do Pagar.me
 PAGARME_API_KEY = os.environ.get('PAGARME_API_KEY', 'ak_test_sua_chave_aqui')
 PAGARME_ENCRYPTION_KEY = os.environ.get('PAGARME_ENCRYPTION_KEY', 'ek_test_sua_chave_aqui')
+PAGARME_API_URL = 'https://api.pagar.me/1'
 
-# Inicializar cliente Pagar.me
-pagarme.authentication_key(PAGARME_API_KEY)
+# Importar pagarme se disponível, senão usar requests
+try:
+    import pagarme
+    pagarme.authentication_key(PAGARME_API_KEY)
+    PAGARME_AVAILABLE = True
+except ImportError:
+    print("⚠️ Módulo pagarme não encontrado, usando requests diretamente")
+    pagarme = None
+    PAGARME_AVAILABLE = False
 
 # Planos de assinatura em centavos (R$)
 PLAN_PRICES_BRL = {
