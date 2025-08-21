@@ -3,43 +3,84 @@
 {% block title %}Dashboard - FynanPro{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1 class="mb-4">Dashboard</h1>
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Bem-vindo, {{ current_user.name }}! 🎉</h5>
-                <p class="card-text">
-                    Seu sistema financeiro FynanPro está funcionando perfeitamente!
-                </p>
-                <p class="text-muted">
-                    Conta criada em: {{ current_user.created_at.strftime('%d/%m/%Y') if current_user.created_at else 'Data não disponível' }}
-                </p>
-                <div class="row mt-4">
-                    <div class="col-md-4">
-                        <div class="card bg-success text-white">
-                            <div class="card-body text-center">
-                                <h3>R$ 0,00</h3>
-                                <p>Receitas</p>
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>📊 Dashboard Financeiro</h2>
+        </div>
+    </div>
+
+    <!-- Resumo Geral -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">💰 Receitas</h5>
+                    <h3>R$ {{ "%.2f"|format(income) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h5 class="card-title">💸 Despesas</h5>
+                    <h3>R$ {{ "%.2f"|format(expenses) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white {{ 'bg-success' if balance >= 0 else 'bg-danger' }}">
+                <div class="card-body">
+                    <h5 class="card-title">💼 Saldo</h5>
+                    <h3>R$ {{ "%.2f"|format(balance) }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📈 Transações Recentes</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_transactions %}
+                        <div class="list-group">
+                            {% for transaction in recent_transactions %}
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <strong>{{ transaction[0] }}</strong><br>
+                                        <small class="text-muted">{{ transaction[3] }}</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge {{ 'bg-success' if transaction[2] == 'income' else 'bg-danger' }}">
+                                            {{ '+' if transaction[2] == 'income' else '-' }}R$ {{ "%.2f"|format(transaction[1]) }}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
+                            {% endfor %}
                         </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card bg-danger text-white">
-                            <div class="card-body text-center">
-                                <h3>R$ 0,00</h3>
-                                <p>Despesas</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card bg-info text-white">
-                            <div class="card-body text-center">
-                                <h3>R$ 0,00</h3>
-                                <p>Saldo</p>
-                            </div>
-                        </div>
-                    </div>
+                    {% else %}
+                        <p class="text-muted">Nenhuma transação encontrada.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>⚡ Ações Rápidas</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('transactions') }}" class="btn btn-primary mb-2 w-100">
+                        💳 Gerenciar Transações
+                    </a>
+                    <hr>
+                    <p><strong>Total de transações:</strong> {{ total_transactions }}</p>
                 </div>
             </div>
         </div>

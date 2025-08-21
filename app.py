@@ -1,57 +1,70 @@
+#!/usr/bin/env python3
 """
-FynanPro - Sistema de Gestão Financeira
-Versão FINAL FUNCIONAL para Render.com
+FynanPro - Sistema Financeiro Simplificado
+Versão Ultra Limpa para Render.com
 """
 
-from flask import Flask, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
 from datetime import datetime
-import logging
 from contextlib import contextmanager
+import secrets
+import logging
 
-# Configuração
+# ===================== CONFIGURAÇÃO =====================
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fynanpro-secret-key-2024')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fynanpro-secret-key-2025')
 app.config['DATABASE_URL'] = os.environ.get('DATABASE_URL', 'finance_planner_saas.db')
+
+# Login Manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
 
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Flask-Login
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
+# ===================== CSRF & SECURITY =====================
+def generate_csrf_token():
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+    return session['csrf_token']
 
+def validate_csrf_token(token):
+    return token and session.get('csrf_token') == token
+
+app.jinja_env.globals['csrf_token'] = generate_csrf_token
+
+# ===================== USER MODEL =====================
 class User(UserMixin):
-    def __init__(self, user_id, username, email):
-        self.id = user_id
-        self.username = username
+    def __init__(self, id, name, email, password_hash):
+        self.id = id
+        self.name = name  
         self.email = email
-
+        self.password_hash = password_hash
+        
 @login_manager.user_loader
 def load_user(user_id):
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, username, email FROM users WHERE id = ?", (user_id,))
-        user = cursor.fetchone()
-        return User(user[0], user[1], user[2]) if user else None
+        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        user_data = cursor.fetchone()
+        if user_data:
+            return User(user_data[0], user_data[1], user_data[2], user_data[3])
+    return None
 
-# Database
-def get_db_path():
-    db_url = app.config['DATABASE_URL']
-    if db_url.startswith('sqlite:///'):
-        return db_url.replace('sqlite:///', '')
-    return db_url
-
+# ===================== DATABASE =====================
 @contextmanager
 def get_db():
     conn = None
     try:
-        db_path = get_db_path()
+        db_path = app.config['DATABASE_URL']
+        if db_path.startswith('sqlite:///'):
+            db_path = db_path.replace('sqlite:///', '')
         conn = sqlite3.connect(db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
         yield conn
@@ -65,22 +78,22 @@ def get_db():
             conn.close()
 
 def init_database():
-    """Initialize database with correct schema"""
+    """Inicializa banco com tabelas essenciais"""
     with get_db() as conn:
         cursor = conn.cursor()
         
-        # Users table
+        # Tabela de usuários
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
+                name TEXT UNIQUE NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        # Transactions table - FIXED SCHEMA
+        # Tabela de transações
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,263 +103,274 @@ def init_database():
                 type TEXT NOT NULL,
                 category TEXT,
                 date DATETIME NOT NULL,
-                notes TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         """)
         
         conn.commit()
-        logger.info("Database initialized")
 
-# Routes
+# ===================== ROTAS =====================
+
 @app.route('/')
 def index():
+    """Homepage moderna"""
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    return "<h1>🏦 FynanPro - Sistema Financeiro</h1><p><a href='/login'>🔐 Login</a> | <a href='/register'>📝 Register</a></p>"
+    return render_template('index.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    """Registro de usuários"""
     if request.method == 'POST':
+        # Validação CSRF
+        csrf_token = request.form.get('csrf_token', '')
+        if not validate_csrf_token(csrf_token):
+            flash('Token de segurança inválido', 'error')
+            return redirect(url_for('register'))
+            
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '').strip()
+        
+        # Validações básicas
+        if not name or len(name) < 2:
+            flash('Nome deve ter pelo menos 2 caracteres', 'error')
+            return redirect(url_for('register'))
+            
+        if not email or '@' not in email:
+            flash('Email inválido', 'error')
+            return redirect(url_for('register'))
+            
+        if not password or len(password) < 8:
+            flash('Senha deve ter pelo menos 8 caracteres', 'error')
+            return redirect(url_for('register'))
+        
         try:
-            username = request.form.get('username', '').strip()
-            email = request.form.get('email', '').strip()
-            password = request.form.get('password', '').strip()
-            
-            if not all([username, email, password]):
-                return "<h2>❌ Erro</h2><p>Todos os campos são obrigatórios</p><a href='/register'>Voltar</a>", 400
-            
             with get_db() as conn:
                 cursor = conn.cursor()
                 
-                # Check if user exists
-                cursor.execute("SELECT id FROM users WHERE username = ? OR email = ?", (username, email))
+                # Verificar se usuário existe
+                cursor.execute("SELECT id FROM users WHERE name = ? OR email = ?", (name, email))
                 if cursor.fetchone():
-                    return "<h2>❌ Erro</h2><p>Usuário já existe</p><a href='/register'>Voltar</a>", 400
+                    flash('Usuário ou email já existe', 'error')
+                    return redirect(url_for('register'))
                 
-                # Create user
+                # Criar usuário
                 password_hash = generate_password_hash(password)
                 cursor.execute(
-                    "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
-                    (username, email, password_hash)
+                    "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
+                    (name, email, password_hash)
                 )
                 conn.commit()
                 
+                flash('Conta criada com sucesso! Faça login.', 'success')
                 return redirect(url_for('login'))
                 
         except Exception as e:
-            logger.error(f"Registration error: {e}")
-            return "<h2>❌ Erro</h2><p>Falha no registro</p><a href='/register'>Voltar</a>", 500
+            logger.error(f"Erro no registro: {e}")
+            flash('Erro interno. Tente novamente.', 'error')
+            return redirect(url_for('register'))
     
-    return '''
-    <h1>📝 Registrar no FynanPro</h1>
-    <form method="post">
-        <p>👤 Username: <input name="username" required></p>
-        <p>📧 Email: <input name="email" type="email" required></p>
-        <p>🔒 Password: <input name="password" type="password" required></p>
-        <p><input type="submit" value="✅ Registrar"></p>
-    </form>
-    <p><a href="/login">🔐 Já tenho conta</a></p>
-    '''
+    return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """Login de usuários"""
     if request.method == 'POST':
+        # Validação CSRF
+        csrf_token = request.form.get('csrf_token', '')
+        if not validate_csrf_token(csrf_token):
+            flash('Token de segurança inválido', 'error')
+            return redirect(url_for('login'))
+            
+        name = request.form.get('name', '').strip()
+        password = request.form.get('password', '').strip()
+        
+        if not name or not password:
+            flash('Nome e senha são obrigatórios', 'error')
+            return redirect(url_for('login'))
+        
         try:
-            username = request.form.get('username', '').strip()
-            password = request.form.get('password', '').strip()
-            
-            if not all([username, password]):
-                return "<h2>❌ Erro</h2><p>Usuário e senha obrigatórios</p><a href='/login'>Voltar</a>", 400
-            
             with get_db() as conn:
                 cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT id, username, email, password_hash FROM users WHERE username = ? OR email = ?",
-                    (username, username)
-                )
+                cursor.execute("SELECT * FROM users WHERE name = ?", (name,))
                 user_data = cursor.fetchone()
                 
                 if user_data and check_password_hash(user_data[3], password):
-                    user = User(user_data[0], user_data[1], user_data[2])
-                    login_user(user, remember=True)
+                    user = User(user_data[0], user_data[1], user_data[2], user_data[3])
+                    login_user(user)
+                    flash(f'Bem-vindo, {user.name}!', 'success')
                     return redirect(url_for('dashboard'))
                 else:
-                    return "<h2>❌ Erro</h2><p>Credenciais inválidas</p><a href='/login'>Voltar</a>", 401
+                    flash('Nome ou senha incorretos', 'error')
                     
         except Exception as e:
-            logger.error(f"Login error: {e}")
-            return "<h2>❌ Erro</h2><p>Falha no login</p><a href='/login'>Voltar</a>", 500
+            logger.error(f"Erro no login: {e}")
+            flash('Erro interno. Tente novamente.', 'error')
     
-    return '''
-    <h1>🔐 Login FynanPro</h1>
-    <form method="post">
-        <p>👤 Username/Email: <input name="username" required></p>
-        <p>🔒 Password: <input name="password" type="password" required></p>
-        <p><input type="submit" value="🚀 Entrar"></p>
-    </form>
-    <p><a href="/register">📝 Criar conta</a></p>
-    '''
+    return render_template('login.html')
 
 @app.route('/logout')
 @login_required
 def logout():
+    """Logout do usuário"""
     logout_user()
+    flash('Logout realizado com sucesso', 'success')
     return redirect(url_for('index'))
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    """Dashboard principal"""
     try:
         with get_db() as conn:
             cursor = conn.cursor()
             
-            # Get stats
+            # Estatísticas básicas
             cursor.execute("""
                 SELECT 
-                    SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as total_income,
-                    SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as total_expense,
+                    COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+                    COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expenses,
                     COUNT(*) as total_transactions
                 FROM transactions 
                 WHERE user_id = ?
             """, (current_user.id,))
             
             stats = cursor.fetchone()
-            total_income = stats[0] or 0
-            total_expense = stats[1] or 0
-            balance = total_income - total_expense
+            income = float(stats[0]) if stats[0] else 0.0
+            expenses = float(stats[1]) if stats[1] else 0.0
+            balance = income - expenses
+            total_transactions = stats[2] if stats[2] else 0
             
-            # Get recent transactions
+            # Transações recentes
             cursor.execute("""
-                SELECT description, amount, type, date
+                SELECT description, amount, type, date 
                 FROM transactions 
                 WHERE user_id = ? 
                 ORDER BY date DESC 
                 LIMIT 10
             """, (current_user.id,))
             
-            transactions = cursor.fetchall()
+            recent_transactions = cursor.fetchall()
             
-            balance_color = "green" if balance >= 0 else "red"
-            
-            html = f"""
-            <h1>📊 Dashboard - {current_user.username}</h1>
-            <div style="background: #f5f5f5; padding: 20px; margin: 10px 0;">
-                <h2>💰 Resumo Financeiro</h2>
-                <p>💚 Receitas: <strong>R$ {total_income:.2f}</strong></p>
-                <p>❌ Despesas: <strong>R$ {total_expense:.2f}</strong></p>
-                <p>💎 Saldo: <strong style="color: {balance_color}">R$ {balance:.2f}</strong></p>
-            </div>
-            
-            <h2>📋 Transações Recentes</h2>
-            <ul>
-            """
-            
-            if not transactions:
-                html += "<li>Nenhuma transação encontrada</li>"
-            else:
-                for tx in transactions:
-                    emoji = "💚" if tx[2] == 'income' else "❌"
-                    html += f"<li>{emoji} {tx[0]} - R$ {tx[1]:.2f} ({tx[2]}) - {tx[3]}</li>"
-            
-            html += f"""
-            </ul>
-            
-            <div style="margin: 20px 0;">
-                <p><a href="/add_transaction" style="background: green; color: white; padding: 10px; text-decoration: none;">➕ Adicionar Transação</a></p>
-                <p><a href="/logout">🚪 Sair</a></p>
-            </div>
-            
-            <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 10px;">
-                <p>✅ <strong>Sistema funcionando perfeitamente!</strong></p>
-                <p>🎯 Total de transações: {stats[2]}</p>
-            </div>
-            """
-            
-            return html
-            
+        return render_template('dashboard.html', 
+                             income=income,
+                             expenses=expenses, 
+                             balance=balance,
+                             total_transactions=total_transactions,
+                             recent_transactions=recent_transactions)
+                             
     except Exception as e:
-        logger.error(f"Dashboard error: {e}")
-        return f"<h2>❌ Erro no Dashboard</h2><p>{str(e)}</p><a href='/'>Voltar</a>", 500
+        logger.error(f"Erro no dashboard: {e}")
+        flash('Erro ao carregar dashboard', 'error')
+        return render_template('dashboard.html',
+                             income=0, expenses=0, balance=0, 
+                             total_transactions=0, recent_transactions=[])
 
-@app.route('/add_transaction', methods=['GET', 'POST'])
+@app.route('/transactions', methods=['GET', 'POST'])
 @login_required
-def add_transaction():
+def transactions():
+    """Gerenciamento de transações"""
     if request.method == 'POST':
+        # Validação CSRF
+        csrf_token = request.form.get('csrf_token', '')
+        if not validate_csrf_token(csrf_token):
+            flash('Token de segurança inválido', 'error')
+            return redirect(url_for('transactions'))
+            
+        description = request.form.get('description', '').strip()
+        amount = request.form.get('amount', '').strip()
+        type_transaction = request.form.get('type', '').strip()
+        category = request.form.get('category', '').strip()
+        date = request.form.get('date', datetime.now().strftime('%Y-%m-%d'))
+        
+        # Validações
+        if not description:
+            flash('Descrição é obrigatória', 'error')
+            return redirect(url_for('transactions'))
+            
         try:
-            description = request.form.get('description', '').strip()
-            amount = float(request.form.get('amount', 0))
-            trans_type = request.form.get('type', 'expense')
+            amount = float(amount)
+            if amount <= 0:
+                raise ValueError("Valor deve ser positivo")
+        except:
+            flash('Valor inválido', 'error')
+            return redirect(url_for('transactions'))
             
-            if not description or amount <= 0:
-                return "<h2>❌ Erro</h2><p>Descrição e valor positivo obrigatórios</p><a href='/add_transaction'>Voltar</a>", 400
-            
+        if type_transaction not in ['income', 'expense']:
+            flash('Tipo de transação inválido', 'error')
+            return redirect(url_for('transactions'))
+        
+        try:
             with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO transactions (user_id, description, amount, type, date)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (current_user.id, description, amount, trans_type, datetime.now().isoformat()))
-                
+                    INSERT INTO transactions (user_id, description, amount, type, category, date)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (current_user.id, description, amount, type_transaction, category, date))
                 conn.commit()
-                return redirect(url_for('dashboard'))
                 
+            flash('Transação adicionada com sucesso!', 'success')
+            return redirect(url_for('transactions'))
+            
         except Exception as e:
-            logger.error(f"Add transaction error: {e}")
-            return f"<h2>❌ Erro</h2><p>Falha ao adicionar: {str(e)}</p><a href='/add_transaction'>Voltar</a>", 500
+            logger.error(f"Erro ao adicionar transação: {e}")
+            flash('Erro ao adicionar transação', 'error')
     
-    return '''
-    <h1>➕ Adicionar Transação</h1>
-    <form method="post">
-        <p>📝 Descrição: <input name="description" required style="width: 300px;"></p>
-        <p>💰 Valor: <input name="amount" type="number" step="0.01" required style="width: 100px;"></p>
-        <p>📊 Tipo: 
-           <select name="type">
-             <option value="expense">❌ Despesa</option>
-             <option value="income">💚 Receita</option>
-           </select>
-        </p>
-        <p><input type="submit" value="✅ Adicionar"></p>
-    </form>
-    <p><a href="/dashboard">⬅️ Voltar ao Dashboard</a></p>
-    '''
-
-# Health checks
-@app.route('/health')
-def health():
+    # Listar transações
     try:
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
-            cursor.fetchone()
+            cursor.execute("""
+                SELECT description, amount, type, category, date
+                FROM transactions 
+                WHERE user_id = ? 
+                ORDER BY date DESC
+            """, (current_user.id,))
+            
+            user_transactions = cursor.fetchall()
+            
+        return render_template('transactions.html', transactions=user_transactions)
         
-        return jsonify({
-            'status': 'healthy',
-            'database': 'connected',
-            'timestamp': datetime.now().isoformat(),
-            'app_name': 'FynanPro',
-            'version': '1.0.0'
-        })
     except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }), 500
+        logger.error(f"Erro ao listar transações: {e}")
+        flash('Erro ao carregar transações', 'error')
+        return render_template('transactions.html', transactions=[])
 
-@app.route('/api/health')
-def api_health():
-    return health()
+@app.route('/health')
+def health():
+    """Health check para Render"""
+    return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
 
-# Initialize app
-try:
-    init_database()
-    logger.info("✅ FynanPro initialized successfully")
-except Exception as e:
-    logger.error(f"❌ Failed to initialize: {e}")
-    raise
+# ===================== INICIALIZAÇÃO =====================
+def create_master_user():
+    """Cria usuário master se não existir"""
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM users WHERE name = 'admin'")
+            if not cursor.fetchone():
+                master_hash = generate_password_hash('admin@financesaas')
+                cursor.execute(
+                    "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
+                    ('admin', 'admin@financesaas.com', master_hash)
+                )
+                conn.commit()
+                logger.info("✅ Usuário master criado: admin / admin@financesaas")
+    except Exception as e:
+        logger.error(f"Erro ao criar usuário master: {e}")
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    print("🚀 Iniciando FynanPro...")
+    
+    try:
+        init_database()
+        create_master_user()
+        
+        port = int(os.environ.get('PORT', 5000))
+        app.run(host='0.0.0.0', port=port, debug=False)
+        
+    except Exception as e:
+        logger.error(f"❌ Erro na inicialização: {e}")
+        raise
