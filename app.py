@@ -470,17 +470,15 @@ def register():
                 name=form.name.data,
                 email=form.email.data.lower(),
                 plan_type='trial',
-                plan_start_date=datetime.utcnow(),
-                plan_end_date=datetime.utcnow() + timedelta(days=7),  # 7 dias grátis
-                trial_used=True
+                plan_start_date=datetime.utcnow()
             )
             user.set_password(form.password.data)
             
             session.add(user)
             session.commit()
             
-            # Criar categorias padrão para o novo usuário
-            init_default_categories_for_user(user.id)
+            # Criar categorias padrão para o novo usuário (comentado temporariamente)
+            # init_default_categories_for_user(user.id)
             
             flash('Cadastro realizado com sucesso! Faça login para continuar.', 'success')
             return redirect(url_for('login'))
