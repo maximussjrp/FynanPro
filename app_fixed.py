@@ -344,6 +344,7 @@ def webhook():
     return '', 200
 
 # INICIALIZAÇÃO DO BANCO
+@app.before_first_request
 def create_tables():
     try:
         Base.metadata.create_all(engine)
@@ -376,10 +377,6 @@ def create_tables():
             
     except Exception as e:
         print(f"Erro ao inicializar banco: {e}")
-
-# Inicializar banco na inicialização da aplicação
-with app.app_context():
-    create_tables()
 
 # HEALTH CHECK
 @app.route('/health')
