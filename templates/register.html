@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Registro - FynanPro{% endblock %}
+{% block title %}Registrar - FynanPro{% endblock %}
 
 {% block content %}
 <div class="container mt-5">
@@ -8,7 +8,7 @@
         <div class="col-md-4">
             <div class="card">
                 <div class="card-header text-center">
-                    <h3>📝 Registro</h3>
+                    <h3>📝 Criar Conta</h3>
                 </div>
                 <div class="card-body">
                     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -34,10 +34,11 @@
                         
                         <div class="mb-3">
                             <label class="form-label">Senha</label>
-                            <input type="password" class="form-control" name="password" required minlength="8">
+                            <input type="password" class="form-control" name="password" required>
+                            <small class="form-text text-muted">Mínimo 8 caracteres</small>
                         </div>
                         
-                        <button type="submit" class="btn btn-success w-100">Registrar</button>
+                        <button type="submit" class="btn btn-success w-100">Criar Conta</button>
                     </form>
                     
                     <div class="text-center mt-3">
