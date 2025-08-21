@@ -9,11 +9,18 @@
 <body class="bg-light">
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">💰 FynanPro</a>
+            <a class="navbar-brand" href="{{ url_for('index') }}">� FynanPro v2.1</a>
             {% if current_user.is_authenticated %}
             <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('dashboard') }}">📊 Dashboard</a>
+                <a class="nav-link" href="{{ url_for('transactions') }}">💳 Transações</a>
                 <span class="navbar-text me-3">Olá, {{ current_user.name }}!</span>
-                <a class="nav-link" href="{{ url_for('logout') }}">Sair</a>
+                <a class="nav-link" href="{{ url_for('logout') }}">🚪 Sair</a>
+            </div>
+            {% else %}
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('login') }}">🔐 Login</a>
+                <a class="nav-link" href="{{ url_for('register') }}">📝 Registrar</a>
             </div>
             {% endif %}
         </div>
