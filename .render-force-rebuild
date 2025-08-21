@@ -1,0 +1,7 @@
+# FORÇA REDEPLOY COMPLETO - RENDER CLEAR CACHE
+timestamp: 2025-08-21_02:35:00
+version: zero_sqlalchemy_final
+deploy_type: force_rebuild
+
+# Este arquivo força o Render a fazer rebuild completo
+# Elimina qualquer cache de versão anterior com SQLAlchemy
