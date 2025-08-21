@@ -450,6 +450,29 @@ def login():
     
     return render_template('auth/login.html', form=form)
 
+@app.route('/health')
+def health_check():
+    """Endpoint para verificar a saúde do sistema"""
+    try:
+        session = Session()
+        
+        # Teste de conexão com banco
+        user_count = session.query(User).count()
+        session.close()
+        
+        return {
+            'status': 'ok',
+            'database': 'connected',
+            'users_count': user_count,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }, 500
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -459,11 +482,16 @@ def register():
     if form.validate_on_submit():
         session = Session()
         try:
+            print(f"[REGISTRO] Tentativa de registro para: {form.email.data}")
+            
             # Verificar se o e-mail já existe
             existing_user = session.query(User).filter_by(email=form.email.data.lower()).first()
             if existing_user:
+                print(f"[REGISTRO] Email já existe: {form.email.data}")
                 flash('Este e-mail já está cadastrado.', 'danger')
                 return render_template('auth/register.html', form=form)
+            
+            print(f"[REGISTRO] Criando novo usuário...")
             
             # Criar novo usuário
             user = User(
@@ -472,21 +500,54 @@ def register():
                 plan_type='trial',
                 plan_start_date=datetime.utcnow()
             )
+            
+            print(f"[REGISTRO] Definindo senha...")
             user.set_password(form.password.data)
             
+            print(f"[REGISTRO] Adicionando usuário à sessão...")
             session.add(user)
+            
+            print(f"[REGISTRO] Fazendo commit...")
             session.commit()
+            
+            print(f"[REGISTRO] Usuário criado com sucesso! ID: {user.id}")
             
             # Criar categorias padrão para o novo usuário (comentado temporariamente)
             # init_default_categories_for_user(user.id)
             
             flash('Cadastro realizado com sucesso! Faça login para continuar.', 'success')
             return redirect(url_for('login'))
+            
         except Exception as e:
             session.rollback()
-            flash('Erro ao criar conta. Tente novamente.', 'danger')
+            error_msg = str(e)
+            print(f"[REGISTRO] ERRO: {error_msg}")
+            
+            # Mensagens de erro mais específicas
+            if "UNIQUE constraint failed" in error_msg:
+                flash('Este e-mail já está cadastrado no sistema.', 'danger')
+            elif "NOT NULL constraint failed" in error_msg:
+                if "email" in error_msg:
+                    flash('E-mail é obrigatório.', 'danger')
+                elif "name" in error_msg:
+                    flash('Nome é obrigatório.', 'danger')
+                elif "password_hash" in error_msg:
+                    flash('Senha é obrigatória.', 'danger')
+                else:
+                    flash(f'Campo obrigatório não preenchido: {error_msg}', 'danger')
+            elif "no such column" in error_msg:
+                flash(f'Erro na estrutura do banco de dados: {error_msg}', 'danger')
+            else:
+                flash(f'Erro ao criar conta: {error_msg}', 'danger')
+                
         finally:
             session.close()
+    else:
+        # Se o formulário não validou, mostrar erros específicos
+        if form.errors:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f'Erro no campo {field}: {error}', 'danger')
     
     return render_template('auth/register.html', form=form)
 
