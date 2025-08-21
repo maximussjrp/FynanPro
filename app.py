@@ -47,20 +47,66 @@ def init_database():
             )
         ''')
         
+        # MIGRAÇÃO AUTOMÁTICA - Verificar e adicionar colunas faltantes
+        cursor.execute("PRAGMA table_info(transactions)")
+        existing_columns = [row[1] for row in cursor.fetchall()]
+        logger.info(f"Colunas existentes em transactions: {existing_columns}")
+        
+        # Criar tabela transactions com todas as colunas necessárias
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 amount REAL NOT NULL,
                 description TEXT NOT NULL,
-                type TEXT NOT NULL,
+                type TEXT NOT NULL DEFAULT 'expense',
                 date DATETIME NOT NULL,
                 account TEXT DEFAULT 'Conta Principal',
                 is_recurrence BOOLEAN DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                category TEXT,
+                notes TEXT,
+                account_id INTEGER,
+                transfer_to_account_id INTEGER,
+                transfer_from_account_id INTEGER,
+                is_transfer BOOLEAN DEFAULT 0,
+                is_adjustment BOOLEAN DEFAULT 0,
+                adjustment_reason TEXT,
+                recurrence_type TEXT,
+                recurrence_interval INTEGER,
+                recurrence_count INTEGER,
+                current_occurrence INTEGER,
+                parent_transaction_id INTEGER,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
+        
+        # Adicionar colunas faltantes se a tabela já existe (MIGRAÇÃO AUTOMÁTICA)
+        required_columns = {
+            'type': 'TEXT DEFAULT "expense"',
+            'category': 'TEXT',
+            'notes': 'TEXT',
+            'account_id': 'INTEGER',
+            'transfer_to_account_id': 'INTEGER',
+            'transfer_from_account_id': 'INTEGER',
+            'is_transfer': 'BOOLEAN DEFAULT 0',
+            'is_adjustment': 'BOOLEAN DEFAULT 0',
+            'adjustment_reason': 'TEXT',
+            'recurrence_type': 'TEXT',
+            'recurrence_interval': 'INTEGER',
+            'recurrence_count': 'INTEGER',
+            'current_occurrence': 'INTEGER',
+            'parent_transaction_id': 'INTEGER'
+        }
+        
+        for column_name, column_type in required_columns.items():
+            if column_name not in existing_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE transactions ADD COLUMN {column_name} {column_type}")
+                    logger.info(f"✅ Coluna adicionada: {column_name}")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" not in str(e).lower():
+                        logger.error(f"❌ Erro ao adicionar coluna {column_name}: {e}")
         
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS categories (
