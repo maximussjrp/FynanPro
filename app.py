@@ -180,18 +180,48 @@ class Category(Base):
         finally:
             session.close()
 
+# Modelo para contas bancárias/carteiras
+class Account(Base):
+    __tablename__ = 'accounts'
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    name = Column(String(100), nullable=False)
+    account_type = Column(String(50), nullable=False)
+    initial_balance = Column(Float, default=0.0)
+    current_balance = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, default=True)
+    
+    # Relacionamento
+    user = relationship("User", backref="accounts")
+
 # Modelo para transações financeiras
 class Transaction(Base):
     __tablename__ = 'transactions'
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    description = Column(String(200), nullable=False)
+    description = Column(String(200))
     amount = Column(Float, nullable=False)
     type = Column(String(20), nullable=False)  # 'income' ou 'expense'
-    category = Column(String(100), nullable=False)
+    category = Column(String(100))
     date = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text)
+    account_id = Column(Integer)
+    transfer_to_account_id = Column(Integer)
+    transfer_from_account_id = Column(Integer)
+    is_transfer = Column(Boolean, default=False)
+    is_adjustment = Column(Boolean, default=False)
+    adjustment_reason = Column(String(200))
+    recurrence_type = Column(String(20))
+    recurrence_interval = Column(Integer)
+    recurrence_count = Column(Integer)
+    current_occurrence = Column(Integer)
+    parent_transaction_id = Column(Integer)
+    
+    # Relacionamento
+    user = relationship("User", backref="transactions")
 
 # Modelo para mensagens de chat
 class ChatMessage(Base):
