@@ -49,23 +49,12 @@ class User(UserMixin, Base):
     email = Column(String(150), unique=True, nullable=False)
     name = Column(String(100), nullable=False)
     password_hash = Column(String(255), nullable=False)
-    role = Column(String(20), default='user')  # 'admin' ou 'user' ou 'master'
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    last_login = Column(DateTime)
     
-    # Campos para planos
-    plan_type = Column(String(20), default='trial')  # 'trial', 'free', 'monthly', 'semester', 'annual', 'enterprise'
+    # Campos básicos para planos  
+    plan_type = Column(String(20), default='trial')
     plan_start_date = Column(DateTime, default=datetime.utcnow)
-    plan_end_date = Column(DateTime)
-    trial_used = Column(Boolean, default=False)
-    
-    # Campos para pagamentos
-    stripe_customer_id = Column(String(100))
-    stripe_subscription_id = Column(String(100))
-    payment_method = Column(String(50))  # 'stripe', 'pix', 'boleto'
-    last_payment_date = Column(DateTime)
-    total_paid = Column(Float, default=0.0)
     
     # Relacionamentos
     transactions = relationship('Transaction', backref='user', lazy=True)
