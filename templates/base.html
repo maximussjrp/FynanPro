@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE h            <a class="navbar-brand" href="{{ url_for('index') }}">💰 FynanPro - Controle Pessoal</a>ml>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -12,8 +12,8 @@
             <a class="navbar-brand" href="{{ url_for('index') }}">� FynanPro v2.1</a>
             {% if current_user.is_authenticated %}
             <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="{{ url_for('dashboard') }}">📊 Dashboard</a>
-                <a class="nav-link" href="{{ url_for('transactions') }}">💳 Transações</a>
+                <a class="nav-link" href="{{ url_for('dashboard') }}">📊 Meu Painel</a>
+                <a class="nav-link" href="{{ url_for('transactions') }}">💳 Meus Lançamentos</a>
                 <span class="navbar-text me-3">Olá, {{ current_user.name }}!</span>
                 <a class="nav-link" href="{{ url_for('logout') }}">🚪 Sair</a>
             </div>

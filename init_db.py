@@ -102,4 +102,5 @@ def init_database():
 
 if __name__ == "__main__":
     print("🚀 Inicializando banco de dados do FynanPro...")
-    init_database()
+    init_database()    PAGARME_API_KEY = ak_test_sua_chave_aqui
+    PAGARME_ENCRYPTION_KEY = ek_test_sua_chave_aqui

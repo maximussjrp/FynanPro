@@ -6,7 +6,7 @@
 <div class="container mt-4">
     <div class="row">
         <div class="col-md-12">
-            <h2>📊 Dashboard Financeiro</h2>
+            <h2>📊 Meu Painel Financeiro</h2>
         </div>
     </div>
 
@@ -23,7 +23,7 @@
         <div class="col-md-4">
             <div class="card text-white bg-danger">
                 <div class="card-body">
-                    <h5 class="card-title">💸 Despesas</h5>
+                    <h5 class="card-title">💸 Gastos</h5>
                     <h3>R$ {{ "%.2f"|format(expenses) }}</h3>
                 </div>
             </div>
@@ -31,7 +31,7 @@
         <div class="col-md-4">
             <div class="card text-white {{ 'bg-success' if balance >= 0 else 'bg-danger' }}">
                 <div class="card-body">
-                    <h5 class="card-title">💼 Saldo</h5>
+                    <h5 class="card-title">� Meu Saldo</h5>
                     <h3>R$ {{ "%.2f"|format(balance) }}</h3>
                 </div>
             </div>
@@ -42,7 +42,7 @@
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
-                    <h5>📈 Transações Recentes</h5>
+                    <h5>📈 Minhas Transações Recentes</h5>
                 </div>
                 <div class="card-body">
                     {% if recent_transactions %}
