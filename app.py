@@ -72,9 +72,11 @@ class User(UserMixin, Base):
         """Verifica se o período de teste ainda está ativo"""
         if self.plan_type != 'trial':
             return False
-        if not self.plan_end_date:
-            return False
-        return datetime.utcnow() <= self.plan_end_date
+        # Simplificado: sempre ativo por 7 dias após criação
+        if not self.created_at:
+            return True
+        trial_end = self.created_at + timedelta(days=7)
+        return datetime.utcnow() <= trial_end
     
     def is_plan_active(self):
         """Verifica se o plano do usuário está ativo"""
@@ -82,9 +84,7 @@ class User(UserMixin, Base):
             return True
         if self.plan_type == 'trial':
             return self.is_trial_active()
-        if not self.plan_end_date:
-            return False
-        return datetime.utcnow() <= self.plan_end_date
+        return True  # Simplificado para sempre ativo
     
     def get_plan_name(self):
         """Retorna o nome do plano em português"""
@@ -102,10 +102,11 @@ class User(UserMixin, Base):
         """Retorna quantos dias restam do plano"""
         if self.plan_type == 'free':
             return 999999  # Ilimitado
-        if not self.plan_end_date:
-            return 0
-        delta = self.plan_end_date - datetime.utcnow()
-        return max(0, delta.days)
+        if self.plan_type == 'trial' and self.created_at:
+            trial_end = self.created_at + timedelta(days=7)
+            delta = trial_end - datetime.utcnow()
+            return max(0, delta.days)
+        return 30  # Default para outros planos
     
     def __repr__(self):
         return f'<User {self.email}>'
@@ -423,7 +424,6 @@ def login():
             user = session.query(User).filter_by(email=form.email.data.lower()).first()
             if user and user.check_password(form.password.data):
                 login_user(user, remember=form.remember_me.data)
-                user.last_login = datetime.utcnow()
                 session.commit()
                 
                 next_page = request.args.get('next')
@@ -562,7 +562,7 @@ def select_plan(plan):
             user = session.query(User).get(current_user.id)
             user.plan_type = 'free'
             user.plan_start_date = datetime.utcnow()
-            user.plan_end_date = None
+            # user.plan_end_date = None  # Campo não existe no banco
             session.commit()
             
             current_user.plan_type = 'free'
@@ -581,9 +581,12 @@ def select_plan(plan):
         # Planos pagos - redirecionar para pagamento
         return redirect(url_for('payment', plan=plan))
 
-@app.route('/payment/<plan>')
-@login_required  
-def payment(plan):
+# ROTAS DE PAGAMENTO TEMPORARIAMENTE DESABILITADAS
+# (campos stripe_customer_id, payment_method, etc. não existem no banco de produção)
+
+# @app.route('/payment/<plan>')
+# @login_required  
+# def payment(plan):
     if plan not in PLAN_PRICES:
         flash('Plano inválido.', 'danger')
         return redirect(url_for('pricing'))
