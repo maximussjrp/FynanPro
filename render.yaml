@@ -2,11 +2,11 @@ services:
   - type: web
     name: fynanpro
     env: python
-    buildCommand: "pip install -r requirements.txt && python init_db.py"
-    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT"
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python init_db.py && gunicorn app:app --bind 0.0.0.0:$PORT"
     plan: free
     envVars:
       - key: SECRET_KEY
-        generateValue: true
+        value: "sua-chave-secreta-muito-segura-aqui-123456789"
       - key: FLASK_ENV
-        value: production
+        value: "production"
