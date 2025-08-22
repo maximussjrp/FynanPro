@@ -1,5 +1,5 @@
-# Arquivo principal para produção - ETAPA 4 - Sistema de Orçamentos e Metas
-# Importa e executa o app_simple_advanced.py que contém toda a implementação da ETAPA 4
+# Arquivo principal para producao - ETAPA 4 - Sistema de Orcamentos e Metas
+# Importa e executa o app_simple_advanced.py que contem toda a implementacao da ETAPA 4
 
 from app_simple_advanced import app
 
