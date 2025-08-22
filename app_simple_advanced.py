@@ -610,6 +610,8 @@ def logout():
 @login_required
 def dashboard():
     current_user = get_current_user()
+    app.logger.info(f"🎯 Dashboard acessado por: {current_user['email'] if current_user else 'Anônimo'}")
+    
     conn = get_db()
     
     try:
@@ -621,22 +623,28 @@ def dashboard():
         from datetime import datetime, date
         today = date.today()
         start_of_month = today.replace(day=1)
+        app.logger.info(f"📅 Período consultado: {start_of_month} até {today}")
         
         # Receitas e despesas do mês (com tratamento de erro)
         try:
-            monthly_income = conn.execute(f'''
+            monthly_income_result = conn.execute(f'''
                 SELECT COALESCE(SUM(amount), 0) FROM transactions t
                 JOIN accounts a ON t.account_id = a.id
                 WHERE a.user_id = ? AND t.{type_column} = 'receita'
                 AND t.date >= ? AND t.date <= ?
-            ''', (current_user['id'], start_of_month.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))).fetchone()[0]
+            ''', (current_user['id'], start_of_month.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))).fetchone()
+            monthly_income = monthly_income_result[0] if monthly_income_result else 0
             
-            monthly_expenses = conn.execute(f'''
+            monthly_expenses_result = conn.execute(f'''
                 SELECT COALESCE(SUM(amount), 0) FROM transactions t
                 JOIN accounts a ON t.account_id = a.id
                 WHERE a.user_id = ? AND t.{type_column} = 'despesa'
                 AND t.date >= ? AND t.date <= ?
-            ''', (current_user['id'], start_of_month.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))).fetchone()[0]
+            ''', (current_user['id'], start_of_month.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))).fetchone()
+            monthly_expenses = monthly_expenses_result[0] if monthly_expenses_result else 0
+            
+            app.logger.info(f"💰 Receitas: R$ {monthly_income}, Despesas: R$ {monthly_expenses}")
+            
         except sqlite3.OperationalError as e:
             app.logger.warning(f"⚠️ Erro em consulta transactions: {e}")
             monthly_income = 0
@@ -644,7 +652,7 @@ def dashboard():
         
         # Transações recentes (com tratamento de erro)
         try:
-            recent_transactions = conn.execute('''
+            recent_transactions_result = conn.execute('''
                 SELECT t.*, a.name as account_name, t.category as category_name
                 FROM transactions t
                 JOIN accounts a ON t.account_id = a.id
@@ -652,42 +660,53 @@ def dashboard():
                 ORDER BY t.date DESC
                 LIMIT 10
             ''', (current_user['id'],)).fetchall()
+            recent_transactions = recent_transactions_result if recent_transactions_result else []
+            app.logger.info(f"📋 Transações recentes: {len(recent_transactions)}")
+            
         except sqlite3.OperationalError as e:
             app.logger.warning(f"⚠️ Erro em consulta recent_transactions: {e}")
             recent_transactions = []
         
         # Contas do usuário (com tratamento de erro)
         try:
-            user_accounts = conn.execute('''
+            user_accounts_result = conn.execute('''
                 SELECT * FROM accounts 
                 WHERE user_id = ? AND is_active = 1 
                 ORDER BY name
             ''', (current_user['id'],)).fetchall()
+            user_accounts = user_accounts_result if user_accounts_result else []
+            app.logger.info(f"🏦 Contas do usuário: {len(user_accounts)}")
+            
         except sqlite3.OperationalError as e:
             app.logger.warning(f"⚠️ Erro em consulta accounts: {e}")
             user_accounts = []
         
         conn.close()
+        app.logger.info("✅ Dashboard carregado com sucesso")
         
-        return render_template('dashboard/index_simple.html',
+        return render_template('dashboard/index_debug.html',
                              monthly_income=monthly_income,
                              monthly_expenses=monthly_expenses,
                              recent_transactions=[dict(tx) for tx in recent_transactions],
                              balance=monthly_income - monthly_expenses,
-                             user_accounts=[dict(acc) for acc in user_accounts]
+                             user_accounts=[dict(acc) for acc in user_accounts],
+                             current_user=current_user
                              )
     
     except Exception as e:
         app.logger.error(f"🚨 ERRO CRÍTICO no dashboard: {str(e)}")
+        import traceback
+        app.logger.error(f"📊 Traceback: {traceback.format_exc()}")
         conn.close()
         
         # Retornar dashboard básico em caso de erro
-        return render_template('dashboard/index_simple.html',
+        return render_template('dashboard/index_debug.html',
                              monthly_income=0,
                              monthly_expenses=0,
                              recent_transactions=[],
                              balance=0,
                              user_accounts=[],
+                             current_user=current_user,
                              error_message="Sistema iniciando... Algumas funcionalidades podem estar limitadas."
                              )
     
