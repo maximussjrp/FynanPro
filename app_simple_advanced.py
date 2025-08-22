@@ -31,6 +31,9 @@ else:
 
 # Criar banco de dados
 def init_db():
+    """Inicializar banco de dados com todas as tabelas necessárias"""
+    app.logger.info("🔧 Inicializando banco de dados...")
+    
     conn = sqlite3.connect(app.config['DATABASE'])
     c = conn.cursor()
     
@@ -119,6 +122,66 @@ def init_db():
     
     conn.commit()
     conn.close()
+    app.logger.info("✅ Banco de dados inicializado com sucesso!")
+
+def ensure_db_initialized():
+    """Garantir que o banco está inicializado - CRÍTICO para produção"""
+    try:
+        conn = sqlite3.connect(app.config['DATABASE'])
+        cursor = conn.cursor()
+        
+        # Verificar se existem tabelas
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        if not tables or len(tables) == 0:
+            app.logger.warning("⚠️ Banco vazio detectado! Inicializando automaticamente...")
+            init_db()
+            
+            # Criar usuário admin padrão para produção
+            create_default_admin()
+            
+            app.logger.info("🚀 Banco inicializado automaticamente para produção!")
+            return True
+        else:
+            app.logger.info(f"✅ Banco já inicializado com {len(tables)} tabelas")
+            return True
+            
+    except Exception as e:
+        app.logger.error(f"🚨 ERRO ao verificar banco: {e}")
+        return False
+
+def create_default_admin():
+    """Criar usuário admin padrão para acesso inicial"""
+    try:
+        conn = sqlite3.connect(app.config['DATABASE'])
+        cursor = conn.cursor()
+        
+        # Verificar se já existe admin
+        admin = cursor.execute('SELECT * FROM users WHERE email = ?', ('admin@fynanpro.com',)).fetchone()
+        
+        if not admin:
+            password_hash = generate_password_hash('admin123')
+            cursor.execute('''
+                INSERT INTO users (email, first_name, last_name, password_hash, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', ('admin@fynanpro.com', 'Admin', 'FynanPro', password_hash, 1, datetime.now()))
+            
+            conn.commit()
+            app.logger.info("👤 Usuário admin criado: admin@fynanpro.com / admin123")
+        
+        conn.close()
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro ao criar admin: {e}")
+
+# Inicializar banco automaticamente na primeira execução
+if os.environ.get('PORT'):  # Apenas em produção (Render)
+    ensure_db_initialized()
+else:
+    app.logger.info("🏠 Modo desenvolvimento - banco não inicializado automaticamente")
 
 # Filtros personalizados
 @app.template_filter('currency')
@@ -211,6 +274,9 @@ def diagnostic():
     try:
         app.logger.info("🔍 Executando diagnóstico completo")
         
+        # Verificar se banco precisa ser inicializado
+        db_initialized = ensure_db_initialized()
+        
         # Verificar banco de dados
         conn = get_db()
         cursor = conn.cursor()
@@ -223,7 +289,9 @@ def diagnostic():
             'status': 'ok',
             'timestamp': datetime.now().isoformat(),
             'database_file': os.path.exists('finance_planner_saas.db'),
+            'database_initialized': db_initialized,
             'tables': tables,
+            'tables_count': len(tables),
             'environment': 'production' if os.environ.get('PORT') else 'development',
             'flask_debug': app.debug
         }
@@ -237,6 +305,22 @@ def diagnostic():
             # Contar usuários
             cursor.execute("SELECT COUNT(*) FROM users")
             result['users_count'] = cursor.fetchone()[0]
+            
+            # Verificar se existe admin
+            admin = cursor.execute('SELECT email FROM users WHERE email = ?', ('admin@fynanpro.com',)).fetchone()
+            result['admin_exists'] = admin is not None
+        
+        # Verificar outras tabelas críticas
+        critical_tables = ['accounts', 'transactions', 'categories', 'budgets', 'goals']
+        result['critical_tables_status'] = {}
+        
+        for table in critical_tables:
+            if table in tables:
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                count = cursor.fetchone()[0]
+                result['critical_tables_status'][table] = f"OK ({count} registros)"
+            else:
+                result['critical_tables_status'][table] = "MISSING"
         
         conn.close()
         app.logger.info("✅ Diagnóstico concluído com sucesso")
