@@ -2233,6 +2233,278 @@ def create_goal():
     
     return redirect(url_for('goals'))
 
+# ===== ROTAS DE CONTAS (ACCOUNTS) =====
+@app.route('/accounts/new', methods=['GET', 'POST'])
+@login_required
+def new_account():
+    """Criar nova conta bancária"""
+    current_user = get_current_user()
+    
+    if request.method == 'POST':
+        try:
+            name = request.form.get('name', '').strip()
+            account_type = request.form.get('account_type', '')
+            bank_name = request.form.get('bank_name', '').strip()
+            initial_balance = float(request.form.get('initial_balance', 0) or 0)
+            color = request.form.get('color', '#007bff')
+            
+            if not name or not account_type:
+                flash('Nome e tipo da conta são obrigatórios!', 'danger')
+                return render_template('accounts/form.html')
+            
+            conn = get_db()
+            
+            # Inserir nova conta
+            conn.execute('''
+                INSERT INTO accounts (user_id, name, account_type, bank_name, 
+                                    current_balance, color, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            ''', (current_user['id'], name, account_type, bank_name, 
+                  initial_balance, color, datetime.now()))
+            
+            conn.commit()
+            conn.close()
+            
+            flash('Conta criada com sucesso!', 'success')
+            return redirect(url_for('accounts'))
+            
+        except Exception as e:
+            app.logger.error(f"🚨 Erro ao criar conta: {e}")
+            flash(f'Erro ao criar conta: {str(e)}', 'danger')
+    
+    return render_template('accounts/form.html', title='Nova Conta')
+
+@app.route('/accounts/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_account(id):
+    """Editar conta existente"""
+    current_user = get_current_user()
+    
+    conn = get_db()
+    
+    # Verificar se a conta pertence ao usuário
+    account = conn.execute('''
+        SELECT * FROM accounts WHERE id = ? AND user_id = ?
+    ''', (id, current_user['id'])).fetchone()
+    
+    if not account:
+        flash('Conta não encontrada!', 'danger')
+        return redirect(url_for('accounts'))
+    
+    if request.method == 'POST':
+        try:
+            name = request.form.get('name', '').strip()
+            account_type = request.form.get('account_type', '')
+            bank_name = request.form.get('bank_name', '').strip()
+            color = request.form.get('color', '#007bff')
+            
+            if not name or not account_type:
+                flash('Nome e tipo da conta são obrigatórios!', 'danger')
+                return render_template('accounts/form.html', account=dict(account))
+            
+            # Atualizar conta
+            conn.execute('''
+                UPDATE accounts SET name = ?, account_type = ?, bank_name = ?, color = ?
+                WHERE id = ? AND user_id = ?
+            ''', (name, account_type, bank_name, color, id, current_user['id']))
+            
+            conn.commit()
+            conn.close()
+            
+            flash('Conta atualizada com sucesso!', 'success')
+            return redirect(url_for('accounts'))
+            
+        except Exception as e:
+            app.logger.error(f"🚨 Erro ao atualizar conta: {e}")
+            flash(f'Erro ao atualizar conta: {str(e)}', 'danger')
+    
+    conn.close()
+    return render_template('accounts/form.html', account=dict(account), title='Editar Conta')
+
+@app.route('/accounts/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_account(id):
+    """Excluir conta (soft delete)"""
+    current_user = get_current_user()
+    
+    try:
+        conn = get_db()
+        
+        # Verificar se a conta pertence ao usuário
+        account = conn.execute('''
+            SELECT * FROM accounts WHERE id = ? AND user_id = ?
+        ''', (id, current_user['id'])).fetchone()
+        
+        if not account:
+            flash('Conta não encontrada!', 'danger')
+            return redirect(url_for('accounts'))
+        
+        # Verificar se há transações vinculadas
+        transactions_count = conn.execute('''
+            SELECT COUNT(*) FROM transactions WHERE account_id = ?
+        ''', (id,)).fetchone()[0]
+        
+        if transactions_count > 0:
+            # Soft delete - apenas desativar
+            conn.execute('''
+                UPDATE accounts SET is_active = 0 WHERE id = ? AND user_id = ?
+            ''', (id, current_user['id']))
+            flash('Conta desativada com sucesso! (possui transações)', 'warning')
+        else:
+            # Hard delete - pode excluir completamente
+            conn.execute('''
+                DELETE FROM accounts WHERE id = ? AND user_id = ?
+            ''', (id, current_user['id']))
+            flash('Conta excluída com sucesso!', 'success')
+        
+        conn.commit()
+        conn.close()
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro ao excluir conta: {e}")
+        flash(f'Erro ao excluir conta: {str(e)}', 'danger')
+    
+    return redirect(url_for('accounts'))
+
+# ===== ROTA DE CONFIGURAÇÕES =====
+@app.route('/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    """Configurações do usuário e sistema"""
+    current_user = get_current_user()
+    
+    if request.method == 'POST':
+        try:
+            # Atualizar dados do usuário
+            first_name = request.form.get('first_name', '').strip()
+            last_name = request.form.get('last_name', '').strip()
+            email = request.form.get('email', '').strip()
+            phone = request.form.get('phone', '').strip()
+            preferred_currency = request.form.get('preferred_currency', 'BRL')
+            
+            if not all([first_name, last_name, email]):
+                flash('Nome, sobrenome e email são obrigatórios!', 'danger')
+                return render_template('settings/index.html', user=current_user)
+            
+            conn = get_db()
+            
+            # Verificar se email já está em uso por outro usuário
+            existing_user = conn.execute('''
+                SELECT id FROM users WHERE email = ? AND id != ?
+            ''', (email, current_user['id'])).fetchone()
+            
+            if existing_user:
+                flash('Este email já está sendo usado por outro usuário!', 'danger')
+                return render_template('settings/index.html', user=current_user)
+            
+            # Atualizar usuário
+            conn.execute('''
+                UPDATE users SET first_name = ?, last_name = ?, email = ?, 
+                               phone = ?, preferred_currency = ?
+                WHERE id = ?
+            ''', (first_name, last_name, email, phone, preferred_currency, current_user['id']))
+            
+            # Atualizar senha se fornecida
+            new_password = request.form.get('new_password', '').strip()
+            if new_password:
+                if len(new_password) < 6:
+                    flash('A senha deve ter pelo menos 6 caracteres!', 'danger')
+                    return render_template('settings/index.html', user=current_user)
+                
+                password_hash = generate_password_hash(new_password)
+                conn.execute('''
+                    UPDATE users SET password_hash = ? WHERE id = ?
+                ''', (password_hash, current_user['id']))
+                
+                flash('Perfil e senha atualizados com sucesso!', 'success')
+            else:
+                flash('Perfil atualizado com sucesso!', 'success')
+            
+            conn.commit()
+            conn.close()
+            
+            return redirect(url_for('settings'))
+            
+        except Exception as e:
+            app.logger.error(f"🚨 Erro ao atualizar configurações: {e}")
+            flash(f'Erro ao atualizar configurações: {str(e)}', 'danger')
+    
+    return render_template('settings/index.html', user=current_user)
+
+# ===== API REST ENDPOINTS - ETAPA 1 =====
+@app.route('/api/v1/status', methods=['GET'])
+def api_status():
+    """API endpoint para status do sistema"""
+    try:
+        conn = get_db()
+        
+        # Verificar conectividade do banco
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        users_count = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM transactions")
+        transactions_count = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM accounts")
+        accounts_count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return jsonify({
+            'status': 'online',
+            'timestamp': datetime.now().isoformat(),
+            'version': '2.0',
+            'database': {
+                'status': 'connected',
+                'users': users_count,
+                'transactions': transactions_count,
+                'accounts': accounts_count
+            },
+            'features': {
+                'transactions': True,
+                'accounts': True,
+                'budgets': True,
+                'reports': True,
+                'api': True
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@app.route('/api/v1/user/profile', methods=['GET'])
+@login_required
+def api_user_profile():
+    """API endpoint para perfil do usuário"""
+    current_user = get_current_user()
+    
+    if not current_user:
+        return jsonify({'error': 'User not authenticated'}), 401
+    
+    # Remover informações sensíveis
+    safe_user = {
+        'id': current_user['id'],
+        'email': current_user['email'],
+        'first_name': current_user['first_name'],
+        'last_name': current_user['last_name'],
+        'phone': current_user.get('phone', ''),
+        'preferred_currency': current_user.get('preferred_currency', 'BRL'),
+        'is_active': current_user.get('is_active', True),
+        'created_at': current_user.get('created_at', ''),
+        'last_login': current_user.get('last_login', '')
+    }
+    
+    return jsonify({
+        'status': 'success',
+        'user': safe_user,
+        'timestamp': datetime.now().isoformat()
+    })
+
 # Contribuir para Meta
 @app.route('/goals/contribute/<int:goal_id>', methods=['POST'])
 @login_required

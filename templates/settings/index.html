@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações - FynanPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <i class="fas fa-cog me-2"></i>
+                    Configurações
+                </h1>
+                <div class="page-actions">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Voltar ao Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <!-- Informações Pessoais -->
+            <div class="card shadow mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-user me-2"></i>
+                        Informações Pessoais
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="first_name" class="form-label">Nome *</label>
+                                    <input type="text" class="form-control" id="first_name" name="first_name" 
+                                           value="{{ user.first_name if user else '' }}" 
+                                           placeholder="Seu nome" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="last_name" class="form-label">Sobrenome *</label>
+                                    <input type="text" class="form-control" id="last_name" name="last_name" 
+                                           value="{{ user.last_name if user else '' }}" 
+                                           placeholder="Seu sobrenome" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">E-mail *</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="{{ user.email if user else '' }}" 
+                                   placeholder="seu@email.com" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="phone" class="form-label">Telefone</label>
+                            <input type="tel" class="form-control" id="phone" name="phone" 
+                                   value="{{ user.phone if user else '' }}" 
+                                   placeholder="(11) 99999-9999">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="preferred_currency" class="form-label">Moeda Preferencial</label>
+                            <select class="form-control" id="preferred_currency" name="preferred_currency">
+                                <option value="BRL" {% if user and user.preferred_currency == 'BRL' %}selected{% endif %}>
+                                    Real Brasileiro (R$)
+                                </option>
+                                <option value="USD" {% if user and user.preferred_currency == 'USD' %}selected{% endif %}>
+                                    Dólar Americano ($)
+                                </option>
+                                <option value="EUR" {% if user and user.preferred_currency == 'EUR' %}selected{% endif %}>
+                                    Euro (€)
+                                </option>
+                            </select>
+                        </div>
+
+                        <hr>
+
+                        <h6 class="mb-3">
+                            <i class="fas fa-lock me-2"></i>
+                            Alterar Senha (opcional)
+                        </h6>
+
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">Nova Senha</label>
+                            <input type="password" class="form-control" id="new_password" name="new_password" 
+                                   placeholder="Deixe em branco para manter a senha atual">
+                            <div class="form-text">
+                                Mínimo 6 caracteres. Deixe em branco se não quiser alterar.
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>
+                                Salvar Configurações
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Estatísticas da Conta -->
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        Estatísticas da Conta
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="stat-box">
+                                <i class="fas fa-calendar-alt text-primary mb-2" style="font-size: 2rem;"></i>
+                                <h6>Membro desde</h6>
+                                <small class="text-muted">
+                                    {{ user.created_at | strftime('%d/%m/%Y') if user and user.created_at else 'N/A' }}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-box">
+                                <i class="fas fa-sign-in-alt text-success mb-2" style="font-size: 2rem;"></i>
+                                <h6>Último acesso</h6>
+                                <small class="text-muted">
+                                    {{ user.last_login | strftime('%d/%m/%Y') if user and user.last_login else 'Primeiro acesso' }}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-box">
+                                <i class="fas fa-shield-alt text-warning mb-2" style="font-size: 2rem;"></i>
+                                <h6>Status da Conta</h6>
+                                <small class="text-muted">
+                                    {% if user and user.is_active %}
+                                        <span class="badge bg-success">Ativa</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inativa</span>
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.stat-box {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: rgba(0,0,0,0.02);
+    margin-bottom: 1rem;
+}
+
+.stat-box:hover {
+    background: rgba(0,0,0,0.05);
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+}
+
+.page-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 15px;
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+}
+</style>
+{% endblock %}
