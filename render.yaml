@@ -2,22 +2,11 @@ services:
   - type: web
     name: fynanpro
     env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python app.py"
     plan: starter
-    buildCommand: |
-      pip install --upgrade pip setuptools wheel
-      pip install -r requirements.txt
-      python -c "from app_simple_advanced import app; print('✅ Build test passed')"
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 --keep-alive 2 --log-level info --access-logfile - --error-logfile - app_simple_advanced:app
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
       - key: SECRET_KEY
         generateValue: true
       - key: FLASK_ENV
-        value: production
-      - key: PYTHONUNBUFFERED
-        value: 1
-      - key: WEB_CONCURRENCY
-        value: 1
-    healthCheckPath: /
-    autoDeploy: true
+        value: "production"
