@@ -2,13 +2,28 @@ services:
   - type: web
     name: fynanpro
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python app.py
     plan: starter
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: |
+      python -c "
+      import os
+      import sys
+      print(f'Python version: {sys.version}')
+      print(f'Working directory: {os.getcwd()}')
+      print(f'Files in directory: {os.listdir()}')
+      print(f'PORT environment: {os.environ.get(\"PORT\", \"Not set\")}')
+      "
+      exec python app.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: SECRET_KEY
         generateValue: true
-      - key: PORT
-        generateValue: false
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHONUNBUFFERED
+        value: 1
+    healthCheckPath: /
+    autoDeploy: true
