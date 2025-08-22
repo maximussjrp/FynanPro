@@ -135,6 +135,40 @@ def init_db():
         )
     ''')
     
+    # Tabela de orçamentos (budgets)
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS budgets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            category_id INTEGER,
+            name TEXT NOT NULL,
+            amount REAL NOT NULL,
+            period_type TEXT DEFAULT 'mensal',
+            start_date DATE,
+            end_date DATE,
+            is_active BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (category_id) REFERENCES categories (id)
+        )
+    ''')
+    
+    # Tabela de metas financeiras (goals)
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            target_amount REAL NOT NULL,
+            current_amount REAL DEFAULT 0,
+            target_date DATE,
+            description TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+    
     conn.commit()
     conn.close()
     app.logger.info("✅ Banco de dados inicializado com sucesso!")
@@ -1311,7 +1345,43 @@ def create_child_transaction(conn, parent, date, parent_id):
 @login_required
 def reports():
     """Dashboard principal de relatórios"""
-    return render_template('reports/index_simple.html')
+    current_user = get_current_user()
+    
+    # Dados básicos para evitar erros de JavaScript
+    basic_stats = {
+        'total_transactions': 0,
+        'total_income': 0,
+        'total_expenses': 0,
+        'categories_count': 0
+    }
+    
+    try:
+        conn = get_db()
+        
+        # Contar transações básicas
+        stats_result = conn.execute('''
+            SELECT COUNT(*) as total_transactions,
+                   COALESCE(SUM(CASE WHEN type = 'receita' THEN amount ELSE 0 END), 0) as total_income,
+                   COALESCE(SUM(CASE WHEN type = 'despesa' THEN amount ELSE 0 END), 0) as total_expenses
+            FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE a.user_id = ?
+        ''', (current_user['id'],)).fetchone()
+        
+        if stats_result:
+            basic_stats = {
+                'total_transactions': stats_result[0] or 0,
+                'total_income': float(stats_result[1] or 0),
+                'total_expenses': float(stats_result[2] or 0),
+                'categories_count': 0
+            }
+        
+        conn.close()
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro ao carregar stats de relatórios: {e}")
+    
+    return render_template('reports/index_simple.html', stats=basic_stats)
 
 @app.route('/reports/cash_flow')
 @login_required
@@ -1721,22 +1791,27 @@ def budgets():
     
     conn = get_db()
     
-    # Buscar orçamentos ativos
-    active_budgets = conn.execute('''
-        SELECT 
-            b.*,
-            c.name as category_name,
-            c.icon,
-            (SELECT COALESCE(SUM(ABS(amount)), 0) 
-             FROM transactions 
-             WHERE user_id = ? AND category_id = b.category_id 
-             AND date >= b.start_date AND date <= b.end_date
-             AND amount < 0) as spent_amount
-        FROM budgets b
-        LEFT JOIN categories c ON b.category_id = c.id
-        WHERE b.user_id = ? AND b.is_active = 1
-        ORDER BY b.created_at DESC
-    ''', (user_id, user_id)).fetchall()
+    try:
+        # Buscar orçamentos ativos
+        active_budgets = conn.execute('''
+            SELECT 
+                b.*,
+                c.name as category_name,
+                c.icon,
+                (SELECT COALESCE(SUM(ABS(amount)), 0) 
+                 FROM transactions 
+                 WHERE user_id = ? AND category_id = b.category_id 
+                 AND date >= b.start_date AND date <= b.end_date
+                 AND amount < 0) as spent_amount
+            FROM budgets b
+            LEFT JOIN categories c ON b.category_id = c.id
+            WHERE b.user_id = ? AND b.is_active = 1
+            ORDER BY b.created_at DESC
+        ''', (user_id, user_id)).fetchall()
+        
+    except sqlite3.OperationalError as e:
+        app.logger.warning(f"⚠️ Erro na tabela budgets: {e}")
+        active_budgets = []
     
     # Calcular estatísticas
     total_budgets = len(active_budgets)
