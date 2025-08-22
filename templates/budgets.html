@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orçamentos - FynanPro</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .main-content {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            margin: 2rem 0;
+            color: white;
+        }
+        
+        .card-custom {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .btn-custom {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .btn-custom:hover {
+            background: linear-gradient(45deg, #5a67d8, #6b46c1);
+            color: white;
+        }
+        
+        .progress-custom {
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .table-dark-custom {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .table-dark-custom th,
+        .table-dark-custom td {
+            border-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content p-4">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h2 mb-1">
+                        <i class="fas fa-target me-2"></i>
+                        Gestão de Orçamentos
+                    </h1>
+                    <p class="text-light opacity-75 mb-0">Controle seus gastos e mantenha suas finanças em ordem</p>
+                </div>
+                <div>
+                    <a href="/" class="btn btn-outline-light me-2">
+                        <i class="fas fa-home"></i> Voltar
+                    </a>
+                    <button class="btn btn-custom" data-bs-toggle="modal" data-bs-target="#newBudgetModal">
+                        <i class="fas fa-plus"></i> Novo Orçamento
+                    </button>
+                </div>
+            </div>
+
+            <!-- Resumo dos Orçamentos -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card-custom p-3 text-center">
+                        <i class="fas fa-bullseye fa-2x mb-2 text-success"></i>
+                        <h5>{{ budgets|length if budgets else 0 }}</h5>
+                        <small>Orçamentos Ativos</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card-custom p-3 text-center">
+                        <i class="fas fa-chart-line fa-2x mb-2 text-info"></i>
+                        <h5>R$ {{ "%.2f"|format(total_budget|default(0)) }}</h5>
+                        <small>Total Orçado</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card-custom p-3 text-center">
+                        <i class="fas fa-wallet fa-2x mb-2 text-warning"></i>
+                        <h5>R$ {{ "%.2f"|format(total_spent|default(0)) }}</h5>
+                        <small>Total Gasto</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista de Orçamentos -->
+            <div class="card-custom">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">
+                        <i class="fas fa-list"></i> Seus Orçamentos
+                    </h5>
+                    
+                    {% if budgets and budgets|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table table-dark-custom">
+                            <thead>
+                                <tr>
+                                    <th><i class="fas fa-tag"></i> Categoria</th>
+                                    <th><i class="fas fa-calendar"></i> Período</th>
+                                    <th><i class="fas fa-dollar-sign"></i> Orçado</th>
+                                    <th><i class="fas fa-chart-bar"></i> Gasto</th>
+                                    <th><i class="fas fa-percentage"></i> Progresso</th>
+                                    <th><i class="fas fa-cog"></i> Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for budget in budgets %}
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-folder text-primary"></i>
+                                        {{ budget.category_name or 'Categoria Geral' }}
+                                    </td>
+                                    <td>{{ budget.start_date|strftime('%m/%Y') if budget.start_date else 'Indefinido' }}</td>
+                                    <td>R$ {{ "%.2f"|format(budget.amount) }}</td>
+                                    <td class="{% if budget.spent > budget.amount %}text-danger{% else %}text-success{% endif %}">
+                                        R$ {{ "%.2f"|format(budget.spent|default(0)) }}
+                                    </td>
+                                    <td>
+                                        {% set progress = ((budget.spent|default(0)) / budget.amount * 100) if budget.amount > 0 else 0 %}
+                                        <div class="progress progress-custom">
+                                            <div class="progress-bar {% if progress > 100 %}bg-danger{% elif progress > 80 %}bg-warning{% else %}bg-success{% endif %}" 
+                                                 style="width: {{ progress|min(100) }}%">
+                                            </div>
+                                        </div>
+                                        <small>{{ "%.1f"|format(progress) }}%</small>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-light">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-target fa-3x mb-3 opacity-50"></i>
+                        <h5>Nenhum orçamento cadastrado</h5>
+                        <p class="text-light opacity-75">Crie seu primeiro orçamento para começar a controlar seus gastos</p>
+                        <button class="btn btn-custom" data-bs-toggle="modal" data-bs-target="#newBudgetModal">
+                            <i class="fas fa-plus"></i> Criar Primeiro Orçamento
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Modal Novo Orçamento -->
+            <div class="modal fade" id="newBudgetModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content bg-dark">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="fas fa-plus"></i> Novo Orçamento
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <form method="POST">
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Categoria</label>
+                                    <select name="category_id" class="form-select bg-dark text-white" required>
+                                        <option value="">Selecione uma categoria</option>
+                                        {% for category in categories %}
+                                        <option value="{{ category.id }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Valor do Orçamento</label>
+                                    <input type="number" name="amount" class="form-control bg-dark text-white" 
+                                           step="0.01" min="0" required placeholder="0,00">
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Data Início</label>
+                                        <input type="date" name="start_date" class="form-control bg-dark text-white" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Data Fim</label>
+                                        <input type="date" name="end_date" class="form-control bg-dark text-white" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-custom">
+                                    <i class="fas fa-save"></i> Salvar Orçamento
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

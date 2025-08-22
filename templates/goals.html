@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metas Financeiras - FynanPro</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .main-content {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            margin: 2rem 0;
+            color: white;
+        }
+        
+        .card-custom {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .btn-custom {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .btn-custom:hover {
+            background: linear-gradient(45deg, #5a67d8, #6b46c1);
+            color: white;
+        }
+        
+        .goal-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+        
+        .goal-card:hover {
+            transform: translateY(-3px);
+        }
+        
+        .progress-ring {
+            width: 60px;
+            height: 60px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content p-4">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h2 mb-1">
+                        <i class="fas fa-bullseye me-2"></i>
+                        Metas Financeiras
+                    </h1>
+                    <p class="text-light opacity-75 mb-0">Defina e acompanhe seus objetivos financeiros</p>
+                </div>
+                <div>
+                    <a href="/" class="btn btn-outline-light me-2">
+                        <i class="fas fa-home"></i> Voltar
+                    </a>
+                    <button class="btn btn-custom" data-bs-toggle="modal" data-bs-target="#newGoalModal">
+                        <i class="fas fa-plus"></i> Nova Meta
+                    </button>
+                </div>
+            </div>
+
+            <!-- Resumo das Metas -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card-custom p-3 text-center">
+                        <i class="fas fa-trophy fa-2x mb-2 text-warning"></i>
+                        <h5>{{ goals|length if goals else 0 }}</h5>
+                        <small>Metas Ativas</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card-custom p-3 text-center">
+                        <i class="fas fa-target fa-2x mb-2 text-success"></i>
+                        <h5>{{ completed_goals|default(0) }}</h5>
+                        <small>Metas Concluídas</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card-custom p-3 text-center">
+                        <i class="fas fa-dollar-sign fa-2x mb-2 text-info"></i>
+                        <h5>R$ {{ "%.2f"|format(total_target|default(0)) }}</h5>
+                        <small>Valor Total das Metas</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card-custom p-3 text-center">
+                        <i class="fas fa-piggy-bank fa-2x mb-2 text-primary"></i>
+                        <h5>R$ {{ "%.2f"|format(total_saved|default(0)) }}</h5>
+                        <small>Total Economizado</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista de Metas -->
+            {% if goals and goals|length > 0 %}
+            <div class="row">
+                {% for goal in goals %}
+                <div class="col-lg-6">
+                    <div class="goal-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="flex-grow-1">
+                                <h5 class="mb-1">
+                                    <i class="fas fa-flag text-warning"></i>
+                                    {{ goal.name }}
+                                </h5>
+                                <small class="text-light opacity-75">{{ goal.description or 'Sem descrição' }}</small>
+                            </div>
+                            <div class="ms-3">
+                                {% set progress = (goal.current_amount / goal.target_amount * 100) if goal.target_amount > 0 else 0 %}
+                                <div class="progress-ring d-flex align-items-center justify-content-center">
+                                    <small class="fw-bold">{{ "%.0f"|format(progress) }}%</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span>R$ {{ "%.2f"|format(goal.current_amount|default(0)) }}</span>
+                                <span>R$ {{ "%.2f"|format(goal.target_amount) }}</span>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                {% set progress = (goal.current_amount / goal.target_amount * 100) if goal.target_amount > 0 else 0 %}
+                                <div class="progress-bar {% if progress >= 100 %}bg-success{% elif progress >= 75 %}bg-info{% elif progress >= 50 %}bg-warning{% else %}bg-primary{% endif %}" 
+                                     style="width: {{ [progress, 100]|min }}%">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <small class="text-light opacity-75">Prazo</small>
+                                <div class="fw-bold">{{ goal.target_date|strftime('%m/%Y') if goal.target_date else '∞' }}</div>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-light opacity-75">Falta</small>
+                                <div class="fw-bold text-info">R$ {{ "%.2f"|format(goal.target_amount - (goal.current_amount|default(0))) }}</div>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-light opacity-75">Ações</small>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-light me-1" 
+                                            data-bs-toggle="modal" data-bs-target="#contributeModal{{ goal.id }}">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-light">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal de Contribuição -->
+                <div class="modal fade" id="contributeModal{{ goal.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content bg-dark">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-plus"></i> Contribuir para: {{ goal.name }}
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <form method="POST" action="/goals/contribute">
+                                <input type="hidden" name="goal_id" value="{{ goal.id }}">
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Valor da Contribuição</label>
+                                        <input type="number" name="amount" class="form-control bg-dark text-white" 
+                                               step="0.01" min="0.01" required placeholder="0,00">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Descrição (opcional)</label>
+                                        <input type="text" name="description" class="form-control bg-dark text-white" 
+                                               placeholder="Ex: Economia do mês">
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                    <button type="submit" class="btn btn-custom">
+                                        <i class="fas fa-piggy-bank"></i> Contribuir
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="card-custom">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-bullseye fa-3x mb-3 opacity-50"></i>
+                    <h5>Nenhuma meta cadastrada</h5>
+                    <p class="text-light opacity-75">Defina sua primeira meta financeira e comece a economizar</p>
+                    <button class="btn btn-custom" data-bs-toggle="modal" data-bs-target="#newGoalModal">
+                        <i class="fas fa-plus"></i> Criar Primeira Meta
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Modal Nova Meta -->
+            <div class="modal fade" id="newGoalModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content bg-dark">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="fas fa-plus"></i> Nova Meta Financeira
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <form method="POST">
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Nome da Meta</label>
+                                    <input type="text" name="name" class="form-control bg-dark text-white" 
+                                           required placeholder="Ex: Comprar um carro">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Descrição</label>
+                                    <textarea name="description" class="form-control bg-dark text-white" rows="2"
+                                              placeholder="Descreva sua meta..."></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Valor da Meta</label>
+                                    <input type="number" name="target_amount" class="form-control bg-dark text-white" 
+                                           step="0.01" min="0.01" required placeholder="0,00">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Data Limite (opcional)</label>
+                                    <input type="date" name="target_date" class="form-control bg-dark text-white">
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-custom">
+                                    <i class="fas fa-save"></i> Criar Meta
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

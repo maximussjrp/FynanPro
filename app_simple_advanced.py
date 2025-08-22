@@ -396,12 +396,17 @@ def inject_user_data():
     if current_user:
         conn = get_db()
         accounts = conn.execute('''
-            SELECT * FROM accounts 
+            SELECT id, name, account_type, balance, is_active, created_at
+            FROM accounts 
             WHERE user_id = ? AND is_active = 1 
             ORDER BY name
         ''', (current_user['id'],)).fetchall()
         
-        total_balance = sum(acc['current_balance'] for acc in accounts if acc['include_in_total'])
+        # Calcular saldo total das contas (excluindo cartões de crédito)
+        total_balance = 0
+        for acc in accounts:
+            if acc['account_type'] != 'cartao':
+                total_balance += float(acc['balance'] or 0)
         conn.close()
         
         return dict(
