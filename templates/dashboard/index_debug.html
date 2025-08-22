@@ -94,6 +94,26 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+            color: white !important;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            font-weight: bold !important;
+        }
+        
+        /* FORÇA BRANCO nos cabeçalhos - CRÍTICO */
+        .table-transparent th {
+            color: #ffffff !important;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+        
+        /* FORÇA BRANCO no texto das células */
+        .table-transparent td {
+            color: white !important;
+        }
+        
+        /* FORÇA BRANCO nos labels das linhas */
+        .table-transparent .text-white {
+            color: #ffffff !important;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6);
         }
         
         .table-transparent tbody tr:hover {
@@ -171,22 +191,30 @@
                             <thead>
                                 <tr class="border-bottom border-light">
                                     <th class="text-white fw-bold"></th>
-                                    <th class="text-white fw-bold text-center">
-                                        <i class="fas fa-calendar-day me-2"></i>{{ financial_table.period_label }}
+                                    <th class="text-center">
+                                        <span class="badge bg-primary fs-6 p-2">
+                                            <i class="fas fa-calendar-day me-2"></i>{{ financial_table.period_label }}
+                                        </span>
                                     </th>
-                                    <th class="text-white fw-bold text-center">
-                                        <i class="fas fa-clock me-2" style="color: #f44336;"></i>Atrasados
+                                    <th class="text-center">
+                                        <span class="badge bg-warning fs-6 p-2">
+                                            <i class="fas fa-clock me-1"></i>Atrasados
+                                        </span>
                                     </th>
-                                    <th class="text-white fw-bold text-center">
-                                        <i class="fas fa-calculator me-2"></i>Total<br>
-                                        <small>(com atrasados)</small>
+                                    <th class="text-center">
+                                        <span class="badge bg-info fs-6 p-2">
+                                            <i class="fas fa-calculator me-1"></i>Total<br>
+                                            <small>(com atrasados)</small>
+                                        </span>
                                     </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr class="border-bottom border-light border-opacity-25">
-                                    <td class="text-white fw-bold">
-                                        <i class="fas fa-arrow-up me-2" style="color: #4CAF50;"></i>A Receber
+                                    <td>
+                                        <span class="badge bg-success fs-6 p-2">
+                                            <i class="fas fa-arrow-up me-2"></i>A Receber
+                                        </span>
                                     </td>
                                     <td class="text-center text-white">
                                         <span class="fs-5 fw-bold" style="color: #4CAF50;">
@@ -207,8 +235,10 @@
                                     </td>
                                 </tr>
                                 <tr class="border-bottom border-light border-opacity-25">
-                                    <td class="text-white fw-bold">
-                                        <i class="fas fa-arrow-down me-2" style="color: #f44336;"></i>A Pagar
+                                    <td>
+                                        <span class="badge bg-danger fs-6 p-2">
+                                            <i class="fas fa-arrow-down me-2"></i>A Pagar
+                                        </span>
                                     </td>
                                     <td class="text-center text-white">
                                         <span class="fs-5 fw-bold" style="color: #f44336;">
@@ -229,8 +259,10 @@
                                     </td>
                                 </tr>
                                 <tr class="border-top border-light">
-                                    <td class="text-white fw-bold">
-                                        <i class="fas fa-balance-scale me-2" style="color: #2196F3;"></i><strong>Total</strong>
+                                    <td>
+                                        <span class="badge bg-secondary fs-6 p-2">
+                                            <i class="fas fa-balance-scale me-2"></i><strong>Total</strong>
+                                        </span>
                                     </td>
                                     <td class="text-center text-white">
                                         <span class="fs-4 fw-bold {% if financial_table.total.period >= 0 %}text-success{% else %}text-danger{% endif %}">
