@@ -1973,41 +1973,6 @@ def accounts():
     return render_template('accounts/index_simple.html', 
                          accounts=[dict(acc) for acc in user_accounts])
 
-@app.route('/accounts/new', methods=['GET', 'POST'])
-@login_required
-def new_account():
-    if request.method == 'POST':
-        current_user = get_current_user()
-        
-        name = request.form['name']
-        account_type = request.form['account_type']
-        bank_name = request.form.get('bank_name', '')
-        bank_code = request.form.get('bank_code', '')
-        agency = request.form.get('agency', '')
-        account_number = request.form.get('account_number', '')
-        initial_balance = float(request.form.get('initial_balance', 0))
-        credit_limit = float(request.form.get('credit_limit', 0))
-        color = request.form.get('color', '#007bff')
-        is_active = 'is_active' in request.form
-        include_in_total = 'include_in_total' in request.form
-        
-        conn = get_db()
-        conn.execute('''
-            INSERT INTO accounts (user_id, name, account_type, bank_name, bank_code,
-                                agency, account_number, initial_balance, current_balance,
-                                credit_limit, color, is_active, include_in_total)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (current_user['id'], name, account_type, bank_name, bank_code,
-              agency, account_number, initial_balance, initial_balance,
-              credit_limit, color, is_active, include_in_total))
-        conn.commit()
-        conn.close()
-        
-        flash('Conta criada com sucesso!', 'success')
-        return redirect(url_for('accounts'))
-    
-    return render_template('accounts/form_simple.html', title='Nova Conta')
-
 # ===== ETAPA 4 - ORÇAMENTOS E METAS =====
 
 # Orçamentos - Página Principal
