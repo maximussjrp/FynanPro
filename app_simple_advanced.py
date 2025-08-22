@@ -367,8 +367,28 @@ def get_current_user():
 def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
+            app.logger.warning("⚠️ Tentativa de acesso sem login - redirecionando")
             flash('Por favor, faça login para acessar esta página.', 'info')
             return redirect(url_for('login'))
+        
+        # Verificação adicional - usuário existe no banco?
+        try:
+            conn = get_db()
+            user_exists = conn.execute('SELECT id FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+            conn.close()
+            
+            if not user_exists:
+                app.logger.warning(f"⚠️ Usuário ID {session['user_id']} não encontrado no banco")
+                session.clear()
+                flash('Sessão inválida. Faça login novamente.', 'warning')
+                return redirect(url_for('login'))
+                
+        except Exception as e:
+            app.logger.error(f"🚨 Erro ao verificar usuário: {e}")
+            session.clear()
+            flash('Erro na verificação. Faça login novamente.', 'error')
+            return redirect(url_for('login'))
+            
         return f(*args, **kwargs)
     decorated_function.__name__ = f.__name__
     return decorated_function
@@ -752,13 +772,20 @@ def calculate_financial_table_data(user_id, period='today'):
 @login_required
 def dashboard():
     current_user = get_current_user()
-    app.logger.info(f"🎯 Dashboard acessado por: {current_user['email'] if current_user else 'Anônimo'}")
+    
+    # VERIFICAÇÃO CRÍTICA - Se user é None, redirecionar para login
+    if not current_user or 'id' not in current_user:
+        app.logger.warning("⚠️ Usuário não encontrado na sessão, redirecionando para login")
+        flash('Sessão expirada. Por favor, faça login novamente.', 'warning')
+        return redirect(url_for('login'))
+    
+    app.logger.info(f"🎯 Dashboard acessado por: {current_user['email']}")
     
     # Obter período selecionado (padrão: month)
     period = request.args.get('period', 'month')
     app.logger.info(f"📊 Período selecionado: {period}")
     
-    # Calcular dados da tabela financeira
+    # Calcular dados da tabela financeira - AGORA SEGURO
     financial_table = calculate_financial_table_data(current_user['id'], period)
     app.logger.info(f"💰 Tabela financeira: {financial_table['period_label']}")
     
