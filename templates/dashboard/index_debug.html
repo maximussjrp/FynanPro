@@ -161,7 +161,8 @@
             box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
         }
         
-        .sidebar.active {
+        .sidebar.active,
+        .sidebar.sidebar-open {
             left: 0;
         }
         
@@ -212,7 +213,8 @@
             transition: all 0.3s ease;
         }
         
-        .sidebar-overlay.active {
+        .sidebar-overlay.active,
+        .sidebar-overlay.sidebar-overlay-active {
             opacity: 1;
             visibility: visible;
         }
@@ -240,7 +242,8 @@
             to { transform: translateX(0); }
         }
         
-        .sidebar.active {
+        .sidebar.active,
+        .sidebar.sidebar-open {
             animation: slideIn 0.3s ease;
         }
         
@@ -676,22 +679,46 @@
         const sidebarOverlay = document.getElementById('sidebarOverlay');
         const closeSidebar = document.getElementById('closeSidebar');
 
+        // Debug logs
+        console.log('Menu Toggle:', menuToggle);
+        console.log('Sidebar:', sidebar);
+        console.log('Sidebar Overlay:', sidebarOverlay);
+        console.log('Close Sidebar:', closeSidebar);
+
         function openSidebar() {
+            console.log('Abrindo sidebar...');
             sidebar.classList.add('sidebar-open');
             sidebarOverlay.classList.add('sidebar-overlay-active');
             document.body.style.overflow = 'hidden';
+            console.log('Classes adicionadas:', sidebar.classList.toString());
         }
 
         function closeSidebarMenu() {
+            console.log('Fechando sidebar...');
             sidebar.classList.remove('sidebar-open');
             sidebarOverlay.classList.remove('sidebar-overlay-active');
             document.body.style.overflow = 'auto';
+            console.log('Classes removidas:', sidebar.classList.toString());
         }
 
         // Event Listeners
-        menuToggle.addEventListener('click', openSidebar);
-        closeSidebar.addEventListener('click', closeSidebarMenu);
-        sidebarOverlay.addEventListener('click', closeSidebarMenu);
+        menuToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openSidebar();
+        });
+        
+        closeSidebar.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeSidebarMenu();
+        });
+        
+        sidebarOverlay.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeSidebarMenu();
+        });
 
         // Fechar menu com ESC
         document.addEventListener('keydown', function(e) {
@@ -701,7 +728,7 @@
         });
 
         // Menu items click handlers
-        document.querySelectorAll('.sidebar-menu-item').forEach(item => {
+        document.querySelectorAll('.sidebar-item').forEach(item => {
             item.addEventListener('click', function(e) {
                 e.preventDefault();
                 const href = this.getAttribute('href');
