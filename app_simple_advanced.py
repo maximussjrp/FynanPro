@@ -134,24 +134,152 @@ def ensure_db_initialized():
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
         tables = [row[0] for row in cursor.fetchall()]
         
-        conn.close()
-        
         if not tables or len(tables) == 0:
             app.logger.warning("⚠️ Banco vazio detectado! Inicializando automaticamente...")
+            conn.close()
             init_db()
             
             # Criar usuário admin padrão para produção
             create_default_admin()
             
             app.logger.info("🚀 Banco inicializado automaticamente para produção!")
-            return True
         else:
             app.logger.info(f"✅ Banco já inicializado com {len(tables)} tabelas")
-            return True
+            
+            # CRÍTICO: Aplicar migrações automáticas
+            apply_database_migrations(conn)
+            
+        conn.close()
+        return True
             
     except Exception as e:
         app.logger.error(f"🚨 ERRO ao verificar banco: {e}")
         return False
+
+def apply_database_migrations(conn):
+    """Aplicar migrações automáticas do banco de dados"""
+    try:
+        cursor = conn.cursor()
+        app.logger.info("🔧 Aplicando migrações automáticas...")
+        
+        # Migração 1: Verificar e corrigir coluna 'type' em transactions
+        try:
+            cursor.execute("SELECT type FROM transactions LIMIT 1")
+        except sqlite3.OperationalError:
+            # Coluna 'type' não existe, verificar se existe 'transaction_type'
+            try:
+                cursor.execute("SELECT transaction_type FROM transactions LIMIT 1")
+                app.logger.info("📝 Renomeando transaction_type para type")
+                
+                # Criar nova tabela com estrutura correta
+                cursor.execute('''
+                    CREATE TABLE transactions_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        description TEXT NOT NULL,
+                        amount REAL NOT NULL,
+                        date DATE NOT NULL,
+                        type TEXT NOT NULL,
+                        category INTEGER,
+                        account_id INTEGER NOT NULL,
+                        notes TEXT,
+                        reference TEXT,
+                        tags TEXT,
+                        recurrence_type TEXT DEFAULT 'unica',
+                        recurrence_end_date DATE,
+                        parent_transaction_id INTEGER,
+                        transfer_account_id INTEGER,
+                        is_confirmed BOOLEAN DEFAULT 1,
+                        is_reconciled BOOLEAN DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (category) REFERENCES categories (id),
+                        FOREIGN KEY (account_id) REFERENCES accounts (id)
+                    )
+                ''')
+                
+                # Copiar dados da tabela antiga
+                cursor.execute('''
+                    INSERT INTO transactions_new 
+                    SELECT id, description, amount, date, transaction_type, 
+                           chart_account_id, account_id, notes, reference, tags,
+                           recurrence_type, recurrence_end_date, parent_transaction_id,
+                           transfer_account_id, is_confirmed, is_reconciled, created_at
+                    FROM transactions
+                ''')
+                
+                # Remover tabela antiga e renomear
+                cursor.execute("DROP TABLE transactions")
+                cursor.execute("ALTER TABLE transactions_new RENAME TO transactions")
+                
+                app.logger.info("✅ Migração transactions: transaction_type → type")
+                
+            except sqlite3.OperationalError:
+                app.logger.info("ℹ️ Estrutura transactions já correta")
+        
+        # Migração 2: Garantir que categories existe
+        try:
+            cursor.execute("SELECT * FROM categories LIMIT 1")
+        except sqlite3.OperationalError:
+            app.logger.info("📝 Criando tabela categories")
+            cursor.execute('''
+                CREATE TABLE categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    color TEXT DEFAULT '#007bff',
+                    icon TEXT DEFAULT 'fas fa-folder',
+                    category_type TEXT DEFAULT 'expense',
+                    parent_id INTEGER,
+                    is_active BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (parent_id) REFERENCES categories (id)
+                )
+            ''')
+            
+            # Inserir categorias básicas
+            basic_categories = [
+                ('Alimentação', 'Gastos com alimentação', '#e74c3c', 'fas fa-utensils', 'expense'),
+                ('Transporte', 'Gastos com transporte', '#3498db', 'fas fa-car', 'expense'),
+                ('Moradia', 'Gastos com moradia', '#2ecc71', 'fas fa-home', 'expense'),
+                ('Salário', 'Receita de salário', '#27ae60', 'fas fa-money-bill', 'income'),
+                ('Freelance', 'Receita freelance', '#f39c12', 'fas fa-laptop', 'income')
+            ]
+            
+            for cat in basic_categories:
+                cursor.execute('''
+                    INSERT INTO categories (name, description, color, icon, category_type)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', cat)
+            
+            app.logger.info("✅ Migração categories: tabela criada com dados básicos")
+        
+        # Migração 3: Garantir tabela accounts
+        try:
+            cursor.execute("SELECT * FROM accounts LIMIT 1")
+        except sqlite3.OperationalError:
+            app.logger.info("� Criando tabela accounts")
+            cursor.execute('''
+                CREATE TABLE accounts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    account_type TEXT NOT NULL,
+                    bank_name TEXT,
+                    current_balance REAL DEFAULT 0,
+                    include_in_total BOOLEAN DEFAULT 1,
+                    color TEXT DEFAULT '#007bff',
+                    is_active BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id)
+                )
+            ''')
+            app.logger.info("✅ Migração accounts: tabela criada")
+        
+        conn.commit()
+        app.logger.info("🎉 Migrações aplicadas com sucesso!")
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro nas migrações: {e}")
+        conn.rollback()
 
 def create_default_admin():
     """Criar usuário admin padrão para acesso inicial"""
@@ -210,6 +338,22 @@ def get_db():
     conn = sqlite3.connect(app.config['DATABASE'])
     conn.row_factory = sqlite3.Row
     return conn
+
+def get_transaction_type_column(conn):
+    """Detectar automaticamente se usa 'type' ou 'transaction_type'"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(transactions)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'type' in columns:
+            return 'type'
+        elif 'transaction_type' in columns:
+            return 'transaction_type'
+        else:
+            return 'type'  # padrão
+    except:
+        return 'type'  # padrão
 
 def get_current_user():
     if 'user_id' not in session:
@@ -468,25 +612,84 @@ def dashboard():
     current_user = get_current_user()
     conn = get_db()
     
-    # Estatísticas do mês atual
-    from datetime import datetime, date
-    today = date.today()
-    start_of_month = today.replace(day=1)
+    try:
+        # Detectar coluna de tipo de transação
+        type_column = get_transaction_type_column(conn)
+        app.logger.info(f"🔍 Usando coluna: {type_column}")
+        
+        # Estatísticas do mês atual
+        from datetime import datetime, date
+        today = date.today()
+        start_of_month = today.replace(day=1)
+        
+        # Receitas e despesas do mês (com tratamento de erro)
+        try:
+            monthly_income = conn.execute(f'''
+                SELECT COALESCE(SUM(amount), 0) FROM transactions t
+                JOIN accounts a ON t.account_id = a.id
+                WHERE a.user_id = ? AND t.{type_column} = 'receita'
+                AND t.date >= ? AND t.date <= ?
+            ''', (current_user['id'], start_of_month.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))).fetchone()[0]
+            
+            monthly_expenses = conn.execute(f'''
+                SELECT COALESCE(SUM(amount), 0) FROM transactions t
+                JOIN accounts a ON t.account_id = a.id
+                WHERE a.user_id = ? AND t.{type_column} = 'despesa'
+                AND t.date >= ? AND t.date <= ?
+            ''', (current_user['id'], start_of_month.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))).fetchone()[0]
+        except sqlite3.OperationalError as e:
+            app.logger.warning(f"⚠️ Erro em consulta transactions: {e}")
+            monthly_income = 0
+            monthly_expenses = 0
+        
+        # Transações recentes (com tratamento de erro)
+        try:
+            recent_transactions = conn.execute('''
+                SELECT t.*, a.name as account_name, t.category as category_name
+                FROM transactions t
+                JOIN accounts a ON t.account_id = a.id
+                WHERE a.user_id = ?
+                ORDER BY t.date DESC
+                LIMIT 10
+            ''', (current_user['id'],)).fetchall()
+        except sqlite3.OperationalError as e:
+            app.logger.warning(f"⚠️ Erro em consulta recent_transactions: {e}")
+            recent_transactions = []
+        
+        # Contas do usuário (com tratamento de erro)
+        try:
+            user_accounts = conn.execute('''
+                SELECT * FROM accounts 
+                WHERE user_id = ? AND is_active = 1 
+                ORDER BY name
+            ''', (current_user['id'],)).fetchall()
+        except sqlite3.OperationalError as e:
+            app.logger.warning(f"⚠️ Erro em consulta accounts: {e}")
+            user_accounts = []
+        
+        conn.close()
+        
+        return render_template('dashboard/index_simple.html',
+                             monthly_income=monthly_income,
+                             monthly_expenses=monthly_expenses,
+                             recent_transactions=[dict(tx) for tx in recent_transactions],
+                             balance=monthly_income - monthly_expenses,
+                             user_accounts=[dict(acc) for acc in user_accounts]
+                             )
     
-    # Receitas e despesas do mês  
-    monthly_income = conn.execute('''
-        SELECT COALESCE(SUM(amount), 0) FROM transactions t
-        JOIN accounts a ON t.account_id = a.id
-        WHERE a.user_id = ? AND t.type = 'receita'
-        AND t.date >= ? AND t.date <= ?
-    ''', (current_user['id'], start_of_month.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))).fetchone()[0]
-    
-    monthly_expenses = conn.execute('''
-        SELECT COALESCE(SUM(amount), 0) FROM transactions t
-        JOIN accounts a ON t.account_id = a.id
-        WHERE a.user_id = ? AND t.type = 'despesa'
-        AND t.date >= ? AND t.date <= ?
-    ''', (current_user['id'], start_of_month.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))).fetchone()[0]
+    except Exception as e:
+        app.logger.error(f"🚨 ERRO CRÍTICO no dashboard: {str(e)}")
+        conn.close()
+        
+        # Retornar dashboard básico em caso de erro
+        return render_template('dashboard/index_simple.html',
+                             monthly_income=0,
+                             monthly_expenses=0,
+                             recent_transactions=[],
+                             balance=0,
+                             user_accounts=[],
+                             error_message="Sistema iniciando... Algumas funcionalidades podem estar limitadas."
+                             )
     
     # Transações recentes
     recent_transactions = conn.execute('''
