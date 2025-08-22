@@ -1,6 +1,8 @@
 # FinanProAdvanced - Sistema Principal (Versão Simplificada)
 import os
 import sqlite3
+import logging
+import sys
 from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -10,6 +12,22 @@ from decimal import Decimal
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'chave-super-secreta-para-desenvolvimento-2024'
 app.config['DATABASE'] = 'finance_planner_saas.db'
+
+# Configurar logging profissional para produção
+if os.environ.get('PORT'):  # Detectar se está no Render
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.StreamHandler(sys.stderr)
+        ]
+    )
+    
+    app.logger.setLevel(logging.INFO)
+    app.logger.info("🚀 FYNANPRO ETAPA 4 - Logging configurado para produção")
+else:
+    app.logger.info("🏠 FYNANPRO ETAPA 4 - Modo desenvolvimento")
 
 # Criar banco de dados
 def init_db():
@@ -186,39 +204,128 @@ def inject_user_data():
         )
     return dict(current_user=None, user_accounts=[], total_balance=0)
 
+# Rota de Diagnóstico para Produção
+@app.route('/diagnostic')
+def diagnostic():
+    """Rota para diagnóstico em produção"""
+    try:
+        app.logger.info("🔍 Executando diagnóstico completo")
+        
+        # Verificar banco de dados
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Listar todas as tabelas
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [row[0] for row in cursor.fetchall()]
+        
+        result = {
+            'status': 'ok',
+            'timestamp': datetime.now().isoformat(),
+            'database_file': os.path.exists('finance_planner_saas.db'),
+            'tables': tables,
+            'environment': 'production' if os.environ.get('PORT') else 'development',
+            'flask_debug': app.debug
+        }
+        
+        # Verificar estrutura da tabela users
+        if 'users' in tables:
+            cursor.execute("PRAGMA table_info(users)")
+            user_columns = [row[1] for row in cursor.fetchall()]
+            result['users_columns'] = user_columns
+            
+            # Contar usuários
+            cursor.execute("SELECT COUNT(*) FROM users")
+            result['users_count'] = cursor.fetchone()[0]
+        
+        conn.close()
+        app.logger.info("✅ Diagnóstico concluído com sucesso")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro no diagnóstico: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
 # Rotas de Autenticação
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'user_id' in session:
-        return redirect(url_for('dashboard'))
-    
-    if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-        remember = 'remember_me' in request.form
+    try:
+        app.logger.info("🔐 Rota login acessada")
         
-        conn = get_db()
-        user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
-        conn.close()
+        if 'user_id' in session:
+            app.logger.info("✅ Usuário já logado, redirecionando")
+            return redirect(url_for('dashboard'))
         
-        if user and check_password_hash(user['password_hash'], password):
-            session['user_id'] = user['id']
-            session.permanent = remember
+        if request.method == 'POST':
+            app.logger.info("📝 Processando login POST")
             
-            # Atualizar último login
-            conn = get_db()
-            conn.execute('UPDATE users SET last_login = ? WHERE id = ?', 
-                        (datetime.now(), user['id']))
-            conn.commit()
-            conn.close()
+            email = request.form.get('email', '').strip()
+            password = request.form.get('password', '')
+            remember = 'remember_me' in request.form
             
-            flash('Login realizado com sucesso!', 'success')
-            next_page = request.args.get('next')
-            return redirect(next_page) if next_page else redirect(url_for('dashboard'))
-        else:
-            flash('Email ou senha incorretos.', 'danger')
-    
-    return render_template('auth/login_simple.html')
+            app.logger.info(f"👤 Tentativa login: {email}")
+            
+            if not email or not password:
+                app.logger.warning("❌ Email ou senha vazios")
+                flash('Por favor, preencha todos os campos.', 'danger')
+                return render_template('auth/login_simple.html')
+            
+            try:
+                conn = get_db()
+                app.logger.info("📊 Conexão BD estabelecida")
+                
+                user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+                app.logger.info(f"🔍 Usuário encontrado: {'✅' if user else '❌'}")
+                
+                if user:
+                    app.logger.info(f"👤 User ID: {user['id']}, Email: {user['email']}")
+                    
+                    # Verificar senha
+                    if check_password_hash(user['password_hash'], password):
+                        app.logger.info("🔑 Senha correta")
+                        
+                        session['user_id'] = user['id']
+                        session.permanent = remember
+                        
+                        # Atualizar último login
+                        conn.execute('UPDATE users SET last_login = ? WHERE id = ?', 
+                                    (datetime.now(), user['id']))
+                        conn.commit()
+                        app.logger.info("✅ Login realizado com sucesso")
+                        
+                        flash('Login realizado com sucesso!', 'success')
+                        next_page = request.args.get('next')
+                        return redirect(next_page) if next_page else redirect(url_for('dashboard'))
+                    else:
+                        app.logger.warning("❌ Senha incorreta")
+                        flash('Email ou senha incorretos.', 'danger')
+                else:
+                    app.logger.warning(f"❌ Email não encontrado: {email}")
+                    flash('Email ou senha incorretos.', 'danger')
+                    
+                conn.close()
+                app.logger.info("📊 Conexão BD fechada")
+                
+            except Exception as db_error:
+                app.logger.error(f"🚨 Erro no banco de dados: {str(db_error)}")
+                import traceback
+                app.logger.error(f"📊 Traceback BD: {traceback.format_exc()}")
+                flash('Erro interno. Tente novamente.', 'danger')
+        
+        app.logger.info("📄 Renderizando template login")
+        return render_template('auth/login_simple.html')
+        
+    except Exception as e:
+        app.logger.error(f"🚨 ERRO CRÍTICO na rota login: {str(e)}")
+        import traceback
+        app.logger.error(f"📊 Traceback completo: {traceback.format_exc()}")
+        flash('Erro interno do sistema.', 'danger')
+        return render_template('auth/login_simple.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
