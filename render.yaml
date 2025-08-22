@@ -1,12 +1,12 @@
 services:
   - type: web
-    name: fynanpro-app
+    name: fynanpro
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python app.py"
-    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:\ app:app --timeout 120 --workers 2
+    plan: starter
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
       - key: SECRET_KEY
-        value: "fynanpro-secret-key-2025-ultra-secure"
-      - key: FLASK_ENV
-        value: "production"
+        generateValue: true
