@@ -26,6 +26,21 @@ if os.environ.get('PORT'):  # Detectar se está no Render
     
     app.logger.setLevel(logging.INFO)
     app.logger.info("🚀 FYNANPRO ETAPA 4 - Logging configurado para produção")
+    
+    # INICIALIZAÇÃO AUTOMÁTICA NO RENDER (com delay para evitar problemas)
+    def init_render():
+        try:
+            init_db()
+            create_default_data()
+            ensure_admin_user()
+            app.logger.info("✅ Sistema inicializado automaticamente no Render")
+        except Exception as e:
+            app.logger.error(f"🚨 Erro na inicialização automática: {e}")
+    
+    # Executar inicialização
+    import threading
+    threading.Thread(target=init_render, daemon=True).start()
+        
 else:
     app.logger.info("🏠 FYNANPRO ETAPA 4 - Modo desenvolvimento")
 
@@ -416,7 +431,7 @@ def inject_user_data():
     if current_user:
         conn = get_db()
         accounts = conn.execute('''
-            SELECT id, name, account_type, balance, is_active, created_at
+            SELECT id, name, account_type, current_balance as balance, is_active, created_at
             FROM accounts 
             WHERE user_id = ? AND is_active = 1 
             ORDER BY name
@@ -2092,9 +2107,33 @@ def create_default_data():
     conn.commit()
     conn.close()
 
+def ensure_admin_user():
+    """Garantir que sempre existe um usuário admin no sistema"""
+    conn = get_db()
+    
+    # Verificar se existe admin
+    admin = conn.execute('SELECT * FROM users WHERE email = ?', ('admin@fynanpro.com',)).fetchone()
+    
+    if not admin:
+        app.logger.info("🔧 Criando usuário admin padrão")
+        password_hash = generate_password_hash('admin123')
+        
+        conn.execute('''
+            INSERT INTO users (email, password_hash, first_name, last_name, is_active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', ('admin@fynanpro.com', password_hash, 'Admin', 'Sistema', True, datetime.now()))
+        
+        conn.commit()
+        app.logger.info("✅ Usuário admin criado: admin@fynanpro.com / admin123")
+    else:
+        app.logger.info("✅ Usuário admin já existe")
+    
+    conn.close()
+
 if __name__ == '__main__':
     with app.app_context():
         init_db()
         create_default_data()
+        ensure_admin_user()  # Garantir admin sempre disponível
     
     app.run(debug=True, host='127.0.0.1', port=5000)
