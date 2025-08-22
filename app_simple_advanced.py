@@ -9,6 +9,15 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
 from decimal import Decimal
 
+try:
+    from dateutil.relativedelta import relativedelta
+except ImportError:
+    # Fallback caso dateutil não esteja disponível
+    class relativedelta:
+        def __init__(self, months=0, years=0):
+            self.months = months
+            self.years = years
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'chave-super-secreta-para-desenvolvimento-2024'
 app.config['DATABASE'] = 'finance_planner_saas.db'
@@ -190,6 +199,8 @@ def ensure_db_initialized():
             
             # Criar usuário admin padrão para produção
             create_default_admin()
+            create_default_data()
+            ensure_admin_user()
             
             app.logger.info("🚀 Banco inicializado automaticamente para produção!")
         else:
@@ -329,6 +340,80 @@ def apply_database_migrations(conn):
     except Exception as e:
         app.logger.error(f"🚨 Erro nas migrações: {e}")
         conn.rollback()
+
+def create_default_data():
+    """Criar dados padrão: categorias, contas básicas"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Verificar se já existem categorias
+        existing_categories = cursor.execute('SELECT COUNT(*) FROM categories').fetchone()
+        if existing_categories and existing_categories[0] > 0:
+            app.logger.info("ℹ️ Categorias já existem")
+            conn.close()
+            return
+        
+        # Criar categorias básicas
+        basic_categories = [
+            ('Alimentação', 'Gastos com alimentação', '#e74c3c', 'fas fa-utensils', 'despesa'),
+            ('Transporte', 'Gastos com transporte', '#3498db', 'fas fa-car', 'despesa'),
+            ('Moradia', 'Aluguel, financiamento, condomínio', '#2ecc71', 'fas fa-home', 'despesa'),
+            ('Saúde', 'Medicamentos, consultas', '#9b59b6', 'fas fa-heartbeat', 'despesa'),
+            ('Educação', 'Cursos, livros, escola', '#f39c12', 'fas fa-graduation-cap', 'despesa'),
+            ('Lazer', 'Entretenimento e diversão', '#e67e22', 'fas fa-gamepad', 'despesa'),
+            ('Roupas', 'Vestuário e calçados', '#1abc9c', 'fas fa-tshirt', 'despesa'),
+            ('Outros Gastos', 'Gastos diversos', '#95a5a6', 'fas fa-question', 'despesa'),
+            ('Salário', 'Receita de salário', '#27ae60', 'fas fa-money-bill-wave', 'receita'),
+            ('Freelance', 'Trabalhos extras', '#f39c12', 'fas fa-laptop', 'receita'),
+            ('Investimentos', 'Rendimentos', '#8e44ad', 'fas fa-chart-line', 'receita'),
+            ('Vendas', 'Vendas diversas', '#3498db', 'fas fa-shopping-bag', 'receita'),
+            ('Outras Receitas', 'Receitas diversas', '#2ecc71', 'fas fa-plus', 'receita')
+        ]
+        
+        for cat in basic_categories:
+            cursor.execute('''
+                INSERT INTO categories (name, description, color, icon, category_type)
+                VALUES (?, ?, ?, ?, ?)
+            ''', cat)
+        
+        conn.commit()
+        conn.close()
+        app.logger.info("✅ Categorias básicas criadas")
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro ao criar dados padrão: {e}")
+
+def ensure_admin_user():
+    """Garantir que existe usuário admin"""
+    try:
+        conn = get_db()
+        
+        # Verificar se admin existe
+        admin = conn.execute('SELECT * FROM users WHERE email = ?', ('admin@fynanpro.com',)).fetchone()
+        
+        if not admin:
+            password_hash = generate_password_hash('admin123')
+            conn.execute('''
+                INSERT INTO users (email, first_name, last_name, password_hash, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', ('admin@fynanpro.com', 'Admin', 'FynanPro', password_hash, 1, datetime.now()))
+            
+            admin_id = conn.lastrowid
+            
+            # Criar conta padrão para o admin
+            conn.execute('''
+                INSERT INTO accounts (user_id, name, account_type, current_balance, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (admin_id, 'Conta Corrente', 'corrente', 0.0, 1, datetime.now()))
+            
+            conn.commit()
+            app.logger.info("👤 Usuário admin criado: admin@fynanpro.com / admin123")
+            
+        conn.close()
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro ao criar admin: {e}")
 
 def create_default_admin():
     """Criar usuário admin padrão para acesso inicial"""
@@ -694,7 +779,88 @@ def logout():
     flash('Você foi desconectado.', 'info')
     return redirect(url_for('login'))
 
-# Função para cálculos da tabela financeira do dashboard
+def update_account_balance(conn, account_id):
+    """Atualizar saldo da conta baseado nas transações - FUNÇÃO CRÍTICA"""
+    try:
+        app.logger.info(f"💰 Atualizando saldo da conta {account_id}")
+        
+        # Detectar coluna de tipo automaticamente
+        type_column = get_transaction_type_column(conn)
+        
+        # Calcular saldo total das transações
+        balance_result = conn.execute(f'''
+            SELECT COALESCE(SUM(
+                CASE 
+                    WHEN {type_column} = 'receita' THEN amount
+                    WHEN {type_column} = 'despesa' THEN -amount
+                    WHEN {type_column} = 'transferencia' THEN amount
+                    ELSE 0
+                END
+            ), 0) FROM transactions WHERE account_id = ?
+        ''', (account_id,)).fetchone()
+        
+        new_balance = float(balance_result[0]) if balance_result and balance_result[0] is not None else 0.0
+        
+        # Atualizar saldo na conta
+        conn.execute('''
+            UPDATE accounts SET current_balance = ? WHERE id = ?
+        ''', (new_balance, account_id))
+        
+        app.logger.info(f"✅ Saldo atualizado: Conta {account_id} = R$ {new_balance:.2f}")
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro ao atualizar saldo da conta {account_id}: {e}")
+        
+def create_recurring_transactions(transaction_id, recurrence_type, end_date):
+    """Criar transações recorrentes - FUNCIONALIDADE AVANÇADA"""
+    try:
+        app.logger.info(f"🔄 Criando recorrência para transação {transaction_id}")
+        
+        conn = get_db()
+        
+        # Buscar transação original
+        original = conn.execute('SELECT * FROM transactions WHERE id = ?', (transaction_id,)).fetchone()
+        if not original:
+            return
+        
+        from datetime import datetime, timedelta
+        from dateutil.relativedelta import relativedelta
+        
+        start_date = datetime.strptime(original['date'], '%Y-%m-%d').date()
+        end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+        current_date = start_date
+        
+        count = 0
+        while current_date <= end_date_obj and count < 100:  # Limite de segurança
+            if recurrence_type == 'semanal':
+                current_date += timedelta(weeks=1)
+            elif recurrence_type == 'mensal':
+                current_date += relativedelta(months=1)
+            elif recurrence_type == 'anual':
+                current_date += relativedelta(years=1)
+            else:
+                break
+                
+            if current_date <= end_date_obj:
+                # Criar nova transação
+                conn.execute('''
+                    INSERT INTO transactions (description, amount, date, type, category, 
+                                            account_id, notes, parent_transaction_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (original['description'], original['amount'], current_date.strftime('%Y-%m-%d'),
+                      original['type'], original['category'], original['account_id'],
+                      original['notes'], transaction_id))
+                
+                count += 1
+        
+        conn.commit()
+        conn.close()
+        app.logger.info(f"✅ Criadas {count} transações recorrentes")
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro ao criar recorrências: {e}")
+
+# Função auxiliares para cálculos da tabela financeira do dashboard
 def calculate_financial_table_data(user_id, period='today'):
     """
     🧮 Calcula dados para tabela financeira do dashboard
@@ -998,63 +1164,82 @@ def transactions():
     
     conn = get_db()
     
-    # Construir query base
-    query = '''
-        SELECT t.*, a.name as account_name, t.category as category_name,
-               ta.name as transfer_account_name
-        FROM transactions t
-        JOIN accounts a ON t.account_id = a.id
-        LEFT JOIN accounts ta ON t.transfer_account_id = ta.id
-        WHERE a.user_id = ?
-    '''
-    params = [current_user['id']]
+    try:
+        # Detectar coluna de tipo automaticamente
+        type_column = get_transaction_type_column(conn)
+        
+        # Construir query base - SQL CORRIGIDO
+        query = f'''
+            SELECT t.*, a.name as account_name, 
+                   CASE 
+                       WHEN t.category IS NOT NULL THEN CAST(t.category AS TEXT)
+                       ELSE 'Sem categoria'
+                   END as category_name,
+                   ta.name as transfer_account_name
+            FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            LEFT JOIN accounts ta ON t.transfer_account_id = ta.id
+            WHERE a.user_id = ?
+        '''
+        params = [current_user['id']]
+        
+        # Aplicar filtros
+        if start_date:
+            query += ' AND t.date >= ?'
+            params.append(start_date)
+        
+        if end_date:
+            query += ' AND t.date <= ?'
+            params.append(end_date)
+        
+        if account_id:
+            query += ' AND t.account_id = ?'
+            params.append(account_id)
+        
+        if transaction_type:
+            query += f' AND t.{type_column} = ?'
+            params.append(transaction_type)
+        
+        if search:
+            query += ' AND (t.description LIKE ? OR t.notes LIKE ? OR t.reference LIKE ?)'
+            search_param = f'%{search}%'
+            params.extend([search_param, search_param, search_param])
+        
+        # Contar total - TRATAMENTO ROBUSTO
+        count_query = f"SELECT COUNT(*) FROM ({query}) as subquery"
+        total_result = conn.execute(count_query, params).fetchone()
+        total = int(total_result[0]) if total_result and total_result[0] is not None else 0
+        
+        # Adicionar ordenação e paginação
+        query += ' ORDER BY t.date DESC, t.created_at DESC LIMIT ? OFFSET ?'
+        params.extend([per_page, (page - 1) * per_page])
+        
+        transactions_list = conn.execute(query, params).fetchall()
+        app.logger.info(f"📋 Encontradas {len(transactions_list)} transações")
+        
+        # Buscar contas para filtros
+        user_accounts = conn.execute('''
+            SELECT * FROM accounts 
+            WHERE user_id = ? AND is_active = 1 
+            ORDER BY name
+        ''', (current_user['id'],)).fetchall()
+        
+        # Calcular paginação
+        total_pages = (total + per_page - 1) // per_page
+        has_prev = page > 1
+        has_next = page < total_pages
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro na consulta de transações: {e}")
+        transactions_list = []
+        user_accounts = []
+        total = 0
+        total_pages = 0
+        has_prev = False
+        has_next = False
     
-    # Aplicar filtros
-    if start_date:
-        query += ' AND t.date >= ?'
-        params.append(start_date)
-    
-    if end_date:
-        query += ' AND t.date <= ?'
-        params.append(end_date)
-    
-    if account_id:
-        query += ' AND t.account_id = ?'
-        params.append(account_id)
-    
-    if transaction_type:
-        query += ' AND t.type = ?'
-        params.append(transaction_type)
-    
-    if search:
-        query += ' AND (t.description LIKE ? OR t.notes LIKE ? OR t.reference LIKE ?)'
-        search_param = f'%{search}%'
-        params.extend([search_param, search_param, search_param])
-    
-    # Contar total - TRATAMENTO ROBUSTO
-    count_query = f"SELECT COUNT(*) FROM ({query}) as subquery"
-    total_result = conn.execute(count_query, params).fetchone()
-    total = int(total_result[0]) if total_result and total_result[0] is not None else 0
-    
-    # Adicionar ordenação e paginação
-    query += ' ORDER BY t.date DESC, t.created_at DESC LIMIT ? OFFSET ?'
-    params.extend([per_page, (page - 1) * per_page])
-    
-    transactions_list = conn.execute(query, params).fetchall()
-    
-    # Buscar contas para filtros
-    user_accounts = conn.execute('''
-        SELECT * FROM accounts 
-        WHERE user_id = ? AND is_active = 1 
-        ORDER BY name
-    ''', (current_user['id'],)).fetchall()
-    
-    conn.close()
-    
-    # Calcular paginação
-    total_pages = (total + per_page - 1) // per_page
-    has_prev = page > 1
-    has_next = page < total_pages
+    finally:
+        conn.close()
     
     return render_template('transactions/index_simple.html',
                          transactions=[dict(t) for t in transactions_list],
@@ -1103,53 +1288,80 @@ def new_transaction():
             flash('Categoria é obrigatória para receitas e despesas.', 'danger')
             return redirect(url_for('new_transaction'))
         
-        # Inserir transação principal
-        transaction_id = conn.execute('''
-            INSERT INTO transactions (description, amount, date, type,
-                                    category, account_id, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (description, amount, date_str, transaction_type, chart_account_id, account_id,
-              notes)).lastrowid
-        
-        # Para transferências, criar transação contrária
-        if transaction_type == 'transferencia' and transfer_account_id:
-            conn.execute('''
+        try:
+            # Inserir transação principal - SQL CORRIGIDO
+            transaction_id = conn.execute('''
                 INSERT INTO transactions (description, amount, date, type,
-                                        account_id, notes)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (f'Transferência de {description}', -amount, date_str, 'transferencia',
-                  transfer_account_id, notes))
+                                        category, account_id, notes, reference, tags,
+                                        recurrence_type, is_confirmed, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (description, amount, date_str, transaction_type, 
+                  chart_account_id or None, account_id, notes, reference, tags,
+                  recurrence_type, 1 if is_confirmed else 0, datetime.now())).lastrowid
+            
+            app.logger.info(f"✅ Transação criada: ID {transaction_id}")
+            
+            # Para transferências, criar transação contrária
+            if transaction_type == 'transferencia' and transfer_account_id:
+                conn.execute('''
+                    INSERT INTO transactions (description, amount, date, type,
+                                            account_id, notes, reference, 
+                                            transfer_account_id, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (f'Transferência: {description}', -amount, date_str, 'transferencia',
+                      transfer_account_id, notes, reference, account_id, datetime.now()))
+                
+                app.logger.info(f"✅ Transferência contrária criada")
+            
+            # Atualizar saldos das contas - CRÍTICO
+            update_account_balance(conn, account_id)
+            if transfer_account_id:
+                update_account_balance(conn, transfer_account_id)
+            
+            conn.commit()
+            app.logger.info(f"✅ Saldos atualizados")
+            
+            # Processar recorrência se necessário
+            if recurrence_type != 'unica' and recurrence_end_date:
+                create_recurring_transactions(transaction_id, recurrence_type, recurrence_end_date)
+            
+            flash('Transação criada com sucesso!', 'success')
+            return redirect(url_for('transactions'))
+            
+        except Exception as e:
+            conn.rollback()
+            app.logger.error(f"🚨 Erro ao criar transação: {e}")
+            flash(f'Erro ao criar transação: {str(e)}', 'danger')
+            return redirect(url_for('new_transaction'))
         
-        # Atualizar saldos das contas
-        update_account_balance(conn, account_id)
-        if transfer_account_id:
-            update_account_balance(conn, transfer_account_id)
-        
-        conn.commit()
-        conn.close()
-        
-        # Processar recorrência se necessário
-        if recurrence_type != 'unica' and recurrence_end_date:
-            create_recurring_transactions(transaction_id, recurrence_type, recurrence_end_date)
-        
-        flash('Transação criada com sucesso!', 'success')
-        return redirect(url_for('transactions'))
+        finally:
+            conn.close()
     
     # GET - Mostrar formulário
     conn = get_db()
-    user_accounts = conn.execute('''
-        SELECT * FROM accounts 
-        WHERE user_id = ? AND is_active = 1 
-        ORDER BY name
-    ''', (current_user['id'],)).fetchall()
+    try:
+        user_accounts = conn.execute('''
+            SELECT * FROM accounts 
+            WHERE user_id = ? AND is_active = 1 
+            ORDER BY name
+        ''', (current_user['id'],)).fetchall()
+        
+        # Buscar categorias da tabela correta
+        categories = conn.execute('''
+            SELECT id, name, category_type, color, icon FROM categories 
+            WHERE is_active = 1
+            ORDER BY category_type, name
+        ''').fetchall()
+        
+        app.logger.info(f"📝 Formulário carregado: {len(user_accounts)} contas, {len(categories)} categorias")
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro ao carregar formulário: {e}")
+        user_accounts = []
+        categories = []
     
-    categories = conn.execute('''
-        SELECT * FROM chart_of_accounts 
-        WHERE is_active = 1 AND is_summary = 0
-        ORDER BY account_type, code
-    ''').fetchall()
-    
-    conn.close()
+    finally:
+        conn.close()
     
     return render_template('transactions/form_simple.html',
                          title='Nova Transação',
