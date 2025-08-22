@@ -553,6 +553,22 @@ def diagnostic():
             'timestamp': datetime.now().isoformat()
         }), 500
 
+# Rota para Favicon (resolver erro 500)
+@app.route('/favicon.ico')
+def favicon():
+    """Rota para servir favicon e evitar erro 500"""
+    from flask import send_from_directory
+    import os
+    
+    # Tentar servir favicon.svg como alternativa
+    favicon_svg = os.path.join(app.root_path, 'static', 'favicon.svg')
+    if os.path.exists(favicon_svg):
+        return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.svg', mimetype='image/svg+xml')
+    
+    # Se não existe, retornar resposta vazia sem erro
+    from flask import Response
+    return Response(status=204)
+
 # Rotas de Autenticação
 @app.route('/login', methods=['GET', 'POST'])
 def login():
