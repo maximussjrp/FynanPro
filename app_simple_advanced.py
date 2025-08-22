@@ -614,109 +614,137 @@ def calculate_financial_table_data(user_id, period='today'):
     """
     🧮 Calcula dados para tabela financeira do dashboard
     Períodos: today, week, month, year
+    TRATAMENTO ROBUSTO - NUNCA FALHA
     """
     from datetime import datetime, date, timedelta
     
-    conn = get_db()
-    type_column = get_transaction_type_column(conn)
-    
-    # Definir período
-    today = date.today()
-    
-    if period == 'today':
-        start_date = today
-        end_date = today
-        period_label = 'Hoje'
-    elif period == 'week':
-        start_date = today - timedelta(days=today.weekday())  # Segunda-feira
-        end_date = start_date + timedelta(days=6)  # Domingo
-        period_label = 'Esta Semana'
-    elif period == 'month':
-        start_date = today.replace(day=1)
-        # Último dia do mês
-        if today.month == 12:
-            end_date = date(today.year + 1, 1, 1) - timedelta(days=1)
-        else:
-            end_date = date(today.year, today.month + 1, 1) - timedelta(days=1)
-        period_label = 'Este Mês'
-    elif period == 'year':
-        start_date = today.replace(month=1, day=1)
-        end_date = today.replace(month=12, day=31)
-        period_label = 'Este Ano'
-    else:
-        start_date = today
-        end_date = today
-        period_label = 'Hoje'
+    # Valores padrão em caso de erro
+    default_data = {
+        'period_label': 'Este Mês',
+        'a_receber': {'period': 0, 'overdue': 0, 'total': 0},
+        'a_pagar': {'period': 0, 'overdue': 0, 'total': 0},
+        'total': {'period': 0, 'overdue': 0, 'total': 0}
+    }
     
     try:
-        # A RECEBER (Receitas) no período
-        period_income = conn.execute(f'''
-            SELECT COALESCE(SUM(amount), 0) FROM transactions t
-            JOIN accounts a ON t.account_id = a.id
-            WHERE a.user_id = ? AND t.{type_column} = 'receita'
-            AND t.date >= ? AND t.date <= ?
-        ''', (user_id, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))).fetchone()[0]
+        conn = get_db()
+        if not conn:
+            app.logger.error("🚨 Falha ao conectar banco de dados")
+            return default_data
+            
+        type_column = get_transaction_type_column(conn)
+        if not type_column:
+            app.logger.error("🚨 Falha ao detectar coluna de tipo")
+            conn.close()
+            return default_data
         
-        # A PAGAR (Despesas) no período
-        period_expenses = conn.execute(f'''
-            SELECT COALESCE(SUM(amount), 0) FROM transactions t
-            JOIN accounts a ON t.account_id = a.id
-            WHERE a.user_id = ? AND t.{type_column} = 'despesa'
-            AND t.date >= ? AND t.date <= ?
-        ''', (user_id, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))).fetchone()[0]
+        # Definir período
+        today = date.today()
         
-        # ATRASADOS (Transações com data anterior a hoje)
-        overdue_income = conn.execute(f'''
-            SELECT COALESCE(SUM(amount), 0) FROM transactions t
-            JOIN accounts a ON t.account_id = a.id
-            WHERE a.user_id = ? AND t.{type_column} = 'receita'
-            AND t.date < ?
-        ''', (user_id, today.strftime('%Y-%m-%d'))).fetchone()[0]
-        
-        overdue_expenses = conn.execute(f'''
-            SELECT COALESCE(SUM(amount), 0) FROM transactions t
-            JOIN accounts a ON t.account_id = a.id
-            WHERE a.user_id = ? AND t.{type_column} = 'despesa'
-            AND t.date < ?
-        ''', (user_id, today.strftime('%Y-%m-%d'))).fetchone()[0]
-        
-        # TOTAL (com atrasados)
-        total_income = period_income + overdue_income
-        total_expenses = period_expenses + overdue_expenses
-        
-        # Resultado da tabela
-        financial_table = {
-            'period_label': period_label,
-            'a_receber': {
-                'period': period_income,
-                'overdue': overdue_income,
-                'total': total_income
-            },
-            'a_pagar': {
-                'period': period_expenses,
-                'overdue': overdue_expenses,
-                'total': total_expenses
-            },
-            'total': {
-                'period': period_income - period_expenses,
-                'overdue': overdue_income - overdue_expenses,
-                'total': total_income - total_expenses
+        if period == 'today':
+            start_date = today
+            end_date = today
+            period_label = 'Hoje'
+        elif period == 'week':
+            start_date = today - timedelta(days=today.weekday())  # Segunda-feira
+            end_date = start_date + timedelta(days=6)  # Domingo
+            period_label = 'Esta Semana'
+        elif period == 'month':
+            start_date = today.replace(day=1)
+            # Último dia do mês
+            if today.month == 12:
+                end_date = date(today.year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = date(today.year, today.month + 1, 1) - timedelta(days=1)
+            period_label = 'Este Mês'
+        elif period == 'year':
+            start_date = today.replace(month=1, day=1)
+            end_date = today.replace(month=12, day=31)
+            period_label = 'Este Ano'
+        else:
+            start_date = today.replace(day=1)
+            if today.month == 12:
+                end_date = date(today.year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = date(today.year, today.month + 1, 1) - timedelta(days=1)
+            period_label = 'Este Mês'
+    
+        try:
+            # A RECEBER (Receitas) no período - CONSULTA ROBUSTA
+            period_income_result = conn.execute(f'''
+                SELECT COALESCE(SUM(amount), 0) FROM transactions t
+                JOIN accounts a ON t.account_id = a.id
+                WHERE a.user_id = ? AND t.{type_column} = 'receita'
+                AND t.date >= ? AND t.date <= ?
+            ''', (user_id, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))).fetchone()
+            period_income = float(period_income_result[0]) if period_income_result and period_income_result[0] is not None else 0.0
+            
+            # A PAGAR (Despesas) no período - CONSULTA ROBUSTA
+            period_expenses_result = conn.execute(f'''
+                SELECT COALESCE(SUM(amount), 0) FROM transactions t
+                JOIN accounts a ON t.account_id = a.id
+                WHERE a.user_id = ? AND t.{type_column} = 'despesa'
+                AND t.date >= ? AND t.date <= ?
+            ''', (user_id, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))).fetchone()
+            period_expenses = float(period_expenses_result[0]) if period_expenses_result and period_expenses_result[0] is not None else 0.0
+            
+            # ATRASADOS (Transações com data anterior a hoje) - CONSULTA ROBUSTA
+            overdue_income_result = conn.execute(f'''
+                SELECT COALESCE(SUM(amount), 0) FROM transactions t
+                JOIN accounts a ON t.account_id = a.id
+                WHERE a.user_id = ? AND t.{type_column} = 'receita'
+                AND t.date < ?
+            ''', (user_id, today.strftime('%Y-%m-%d'))).fetchone()
+            overdue_income = float(overdue_income_result[0]) if overdue_income_result and overdue_income_result[0] is not None else 0.0
+            
+            overdue_expenses_result = conn.execute(f'''
+                SELECT COALESCE(SUM(amount), 0) FROM transactions t
+                JOIN accounts a ON t.account_id = a.id
+                WHERE a.user_id = ? AND t.{type_column} = 'despesa'
+                AND t.date < ?
+            ''', (user_id, today.strftime('%Y-%m-%d'))).fetchone()
+            overdue_expenses = float(overdue_expenses_result[0]) if overdue_expenses_result and overdue_expenses_result[0] is not None else 0.0
+            
+            # TOTAL (com atrasados) - CÁLCULOS SEGUROS
+            total_income = period_income + overdue_income
+            total_expenses = period_expenses + overdue_expenses
+            
+            # Resultado da tabela - ESTRUTURA GARANTIDA
+            financial_table = {
+                'period_label': period_label,
+                'a_receber': {
+                    'period': period_income,
+                    'overdue': overdue_income,
+                    'total': total_income
+                },
+                'a_pagar': {
+                    'period': period_expenses,
+                    'overdue': overdue_expenses,
+                    'total': total_expenses
+                },
+                'total': {
+                    'period': period_income - period_expenses,
+                    'overdue': overdue_income - overdue_expenses,
+                    'total': total_income - total_expenses
+                }
             }
-        }
-        
-        conn.close()
-        return financial_table
-        
+            
+            conn.close()
+            app.logger.info(f"✅ Tabela financeira calculada: {period_label}")
+            return financial_table
+            
+        except sqlite3.Error as sql_error:
+            app.logger.error(f"🚨 Erro SQL na tabela financeira: {sql_error}")
+            conn.close()
+            return default_data
+            
     except Exception as e:
-        app.logger.error(f"🚨 Erro no cálculo da tabela financeira: {e}")
-        conn.close()
-        # Retornar dados zerados em caso de erro
-        return {
-            'period_label': period_label,
-            'a_receber': {'period': 0, 'overdue': 0, 'total': 0},
-            'a_pagar': {'period': 0, 'overdue': 0, 'total': 0},
-            'total': {'period': 0, 'overdue': 0, 'total': 0}
-        }
+        app.logger.error(f"🚨 Erro CRÍTICO no cálculo da tabela financeira: {e}")
+        try:
+            conn.close()
+        except:
+            pass
+        return default_data
 
 # Rota Principal - Dashboard
 @app.route('/')
