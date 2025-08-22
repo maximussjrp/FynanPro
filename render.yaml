@@ -2,11 +2,11 @@ services:
   - type: web
     name: fynanpro
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python app.py"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run.py
     plan: starter
     envVars:
       - key: SECRET_KEY
         generateValue: true
       - key: FLASK_ENV
-        value: "production"
+        value: production
