@@ -451,9 +451,9 @@ def diagnostic():
             user_columns = [row[1] for row in cursor.fetchall()]
             result['users_columns'] = user_columns
             
-            # Contar usuários
-            cursor.execute("SELECT COUNT(*) FROM users")
-            result['users_count'] = cursor.fetchone()[0]
+            # Contar usuários - TRATAMENTO ROBUSTO
+            users_count_result = cursor.execute("SELECT COUNT(*) FROM users").fetchone()
+            result['users_count'] = int(users_count_result[0]) if users_count_result and users_count_result[0] is not None else 0
             
             # Verificar se existe admin
             admin = cursor.execute('SELECT email FROM users WHERE email = ?', ('admin@fynanpro.com',)).fetchone()
@@ -465,8 +465,8 @@ def diagnostic():
         
         for table in critical_tables:
             if table in tables:
-                cursor.execute(f"SELECT COUNT(*) FROM {table}")
-                count = cursor.fetchone()[0]
+                table_count_result = cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+                count = int(table_count_result[0]) if table_count_result and table_count_result[0] is not None else 0
                 result['critical_tables_status'][table] = f"OK ({count} registros)"
             else:
                 result['critical_tables_status'][table] = "MISSING"
@@ -775,7 +775,7 @@ def dashboard():
         start_of_month = today.replace(day=1)
         app.logger.info(f"📅 Período consultado: {start_of_month} até {today}")
         
-        # Receitas e despesas do mês (com tratamento de erro)
+        # Receitas e despesas do mês (com tratamento de erro ROBUSTO)
         try:
             monthly_income_result = conn.execute(f'''
                 SELECT COALESCE(SUM(amount), 0) FROM transactions t
@@ -783,7 +783,7 @@ def dashboard():
                 WHERE a.user_id = ? AND t.{type_column} = 'receita'
                 AND t.date >= ? AND t.date <= ?
             ''', (current_user['id'], start_of_month.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))).fetchone()
-            monthly_income = monthly_income_result[0] if monthly_income_result else 0
+            monthly_income = float(monthly_income_result[0]) if monthly_income_result and monthly_income_result[0] is not None else 0.0
             
             monthly_expenses_result = conn.execute(f'''
                 SELECT COALESCE(SUM(amount), 0) FROM transactions t
@@ -791,7 +791,7 @@ def dashboard():
                 WHERE a.user_id = ? AND t.{type_column} = 'despesa'
                 AND t.date >= ? AND t.date <= ?
             ''', (current_user['id'], start_of_month.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))).fetchone()
-            monthly_expenses = monthly_expenses_result[0] if monthly_expenses_result else 0
+            monthly_expenses = float(monthly_expenses_result[0]) if monthly_expenses_result and monthly_expenses_result[0] is not None else 0.0
             
             app.logger.info(f"💰 Receitas: R$ {monthly_income}, Despesas: R$ {monthly_expenses}")
             
@@ -939,9 +939,10 @@ def transactions():
         search_param = f'%{search}%'
         params.extend([search_param, search_param, search_param])
     
-    # Contar total
+    # Contar total - TRATAMENTO ROBUSTO
     count_query = f"SELECT COUNT(*) FROM ({query}) as subquery"
-    total = conn.execute(count_query, params).fetchone()[0]
+    total_result = conn.execute(count_query, params).fetchone()
+    total = int(total_result[0]) if total_result and total_result[0] is not None else 0
     
     # Adicionar ordenação e paginação
     query += ' ORDER BY t.date DESC, t.created_at DESC LIMIT ? OFFSET ?'
@@ -1180,8 +1181,8 @@ def update_account_balance(conn, account_id):
     
     initial_balance = account['initial_balance'] or 0
     
-    # Calcular total das transações
-    total_transactions = conn.execute('''
+    # Calcular total das transações - TRATAMENTO ROBUSTO
+    total_transactions_result = conn.execute('''
         SELECT COALESCE(SUM(
             CASE 
                 WHEN type = 'receita' THEN amount
@@ -1191,7 +1192,9 @@ def update_account_balance(conn, account_id):
             END
         ), 0) FROM transactions
         WHERE account_id = ? AND is_confirmed = 1
-    ''', (account_id,)).fetchone()[0]
+    ''', (account_id,)).fetchone()
+    
+    total_transactions = float(total_transactions_result[0]) if total_transactions_result and total_transactions_result[0] is not None else 0.0
     
     new_balance = initial_balance + total_transactions
     
@@ -2023,8 +2026,9 @@ def planning():
 def create_default_data():
     conn = get_db()
     
-    # Verificar se já existem dados
-    if conn.execute('SELECT COUNT(*) FROM chart_of_accounts').fetchone()[0] > 0:
+    # Verificar se já existem dados - TRATAMENTO ROBUSTO
+    chart_count_result = conn.execute('SELECT COUNT(*) FROM chart_of_accounts').fetchone()
+    if chart_count_result and chart_count_result[0] is not None and int(chart_count_result[0]) > 0:
         conn.close()
         return
     
