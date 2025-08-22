@@ -1,0 +1,281 @@
+{% extends "base_advanced.html" %}
+
+{% block title %}{% if account %}Editar Conta{% else %}Nova Conta{% endif %} - FinanPro Advanced{% endblock %}
+
+{% block page_title %}{% if account %}Editar Conta{% else %}Nova Conta{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-xl-8 col-lg-10">
+        <div class="card-modern">
+            <div class="card-header-modern">
+                <h5 class="mb-0">
+                    <i class="fas {% if account %}fa-edit{% else %}fa-plus{% endif %} text-primary me-2"></i>
+                    {% if account %}Editar Conta: {{ account.name }}{% else %}Adicionar Nova Conta{% endif %}
+                </h5>
+            </div>
+            <div class="card-body-modern">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            {{ form.name.label(class="form-label form-label-modern") }}
+                            {{ form.name(class="form-control form-control-modern" + (" is-invalid" if form.name.errors else "")) }}
+                            {% for error in form.name.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.account_type.label(class="form-label form-label-modern") }}
+                            {{ form.account_type(class="form-select form-control-modern" + (" is-invalid" if form.account_type.errors else "")) }}
+                            {% for error in form.account_type.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.bank_name.label(class="form-label form-label-modern") }}
+                            {{ form.bank_name(class="form-control form-control-modern" + (" is-invalid" if form.bank_name.errors else "")) }}
+                            {% for error in form.bank_name.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.bank_code.label(class="form-label form-label-modern") }}
+                            {{ form.bank_code(class="form-control form-control-modern" + (" is-invalid" if form.bank_code.errors else "")) }}
+                            {% for error in form.bank_code.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.agency.label(class="form-label form-label-modern") }}
+                            {{ form.agency(class="form-control form-control-modern" + (" is-invalid" if form.agency.errors else "")) }}
+                            {% for error in form.agency.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.account_number.label(class="form-label form-label-modern") }}
+                            {{ form.account_number(class="form-control form-control-modern" + (" is-invalid" if form.account_number.errors else "")) }}
+                            {% for error in form.account_number.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            {{ form.initial_balance.label(class="form-label form-label-modern") }}
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                {{ form.initial_balance(class="form-control form-control-modern" + (" is-invalid" if form.initial_balance.errors else "")) }}
+                            </div>
+                            {% for error in form.initial_balance.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.credit_limit.label(class="form-label form-label-modern") }}
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                {{ form.credit_limit(class="form-control form-control-modern" + (" is-invalid" if form.credit_limit.errors else "")) }}
+                            </div>
+                            {% for error in form.credit_limit.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                            <small class="form-text text-muted">Apenas para cartões de crédito</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.color.label(class="form-label form-label-modern") }}
+                            {{ form.color(class="form-control form-control-modern" + (" is-invalid" if form.color.errors else "")) }}
+                            {% for error in form.color.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                {{ form.is_active(class="form-check-input") }}
+                                {{ form.is_active.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                {{ form.include_in_total(class="form-check-input") }}
+                                {{ form.include_in_total.label(class="form-check-label") }}
+                            </div>
+                            <small class="form-text text-muted">Se marcado, será incluída no saldo total</small>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('accounts') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Voltar
+                        </a>
+                        
+                        <div>
+                            {% if account %}
+                            <button type="button" class="btn btn-outline-danger me-2">
+                                <i class="fas fa-trash me-2"></i>
+                                Excluir Conta
+                            </button>
+                            {% endif %}
+                            {{ form.submit(class="btn btn-primary btn-modern") }}
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Preview Card -->
+        <div class="col-xl-4 col-lg-6 mt-4">
+            <div class="card-modern">
+                <div class="card-header-modern">
+                    <h6 class="mb-0">
+                        <i class="fas fa-eye text-primary me-2"></i>
+                        Visualização
+                    </h6>
+                </div>
+                <div class="card-body-modern">
+                    <div class="account-preview">
+                        <div class="d-flex align-items-start mb-3">
+                            <div class="me-3">
+                                <div class="account-icon-preview" id="accountIconPreview" style="width: 45px; height: 45px; background-color: #007bff; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-wallet text-white"></i>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1" id="accountNamePreview">Nome da Conta</h6>
+                                <small class="text-muted" id="accountTypePreview">Tipo da Conta</small>
+                                <br>
+                                <small class="text-muted" id="bankNamePreview">Banco</small>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <div class="balance-amount text-success" id="balancePreview">
+                                R$ 0,00
+                            </div>
+                            <small class="text-muted">Saldo Inicial</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const nameField = document.getElementById('name');
+    const typeField = document.getElementById('account_type');
+    const bankField = document.getElementById('bank_name');
+    const balanceField = document.getElementById('initial_balance');
+    const colorField = document.getElementById('color');
+    
+    const namePreview = document.getElementById('accountNamePreview');
+    const typePreview = document.getElementById('accountTypePreview');
+    const bankPreview = document.getElementById('bankNamePreview');
+    const balancePreview = document.getElementById('balancePreview');
+    const iconPreview = document.getElementById('accountIconPreview');
+    
+    function updatePreview() {
+        // Update name
+        if (nameField.value) {
+            namePreview.textContent = nameField.value;
+        } else {
+            namePreview.textContent = 'Nome da Conta';
+        }
+        
+        // Update type
+        if (typeField.value) {
+            const typeText = typeField.options[typeField.selectedIndex].text;
+            typePreview.textContent = typeText;
+        } else {
+            typePreview.textContent = 'Tipo da Conta';
+        }
+        
+        // Update bank
+        if (bankField.value) {
+            bankPreview.textContent = bankField.value;
+        } else {
+            bankPreview.textContent = 'Banco';
+        }
+        
+        // Update balance
+        if (balanceField.value) {
+            const balance = parseFloat(balanceField.value) || 0;
+            balancePreview.textContent = balance.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            });
+            balancePreview.className = balance >= 0 ? 'balance-amount text-success' : 'balance-amount text-danger';
+        } else {
+            balancePreview.textContent = 'R$ 0,00';
+            balancePreview.className = 'balance-amount text-success';
+        }
+        
+        // Update color
+        if (colorField.value) {
+            iconPreview.style.backgroundColor = colorField.value;
+        }
+        
+        // Update icon based on type
+        const iconMap = {
+            'corrente': 'fa-university',
+            'poupanca': 'fa-piggy-bank',
+            'cartao_credito': 'fa-credit-card',
+            'investimento': 'fa-chart-line',
+            'dinheiro': 'fa-wallet'
+        };
+        
+        const iconClass = iconMap[typeField.value] || 'fa-wallet';
+        iconPreview.innerHTML = `<i class="fas ${iconClass} text-white"></i>`;
+    }
+    
+    // Add event listeners
+    [nameField, typeField, bankField, balanceField, colorField].forEach(field => {
+        if (field) {
+            field.addEventListener('input', updatePreview);
+            field.addEventListener('change', updatePreview);
+        }
+    });
+    
+    // Initial update
+    updatePreview();
+});
+</script>
+
+<style>
+.balance-amount {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.account-preview {
+    padding: 1rem 0;
+}
+
+.form-control-modern:focus {
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
+}
+
+.input-group-text {
+    background-color: var(--gray-100);
+    border-color: var(--gray-300);
+    color: var(--gray-600);
+}
+</style>
+{% endblock %}

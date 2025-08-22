@@ -1,0 +1,116 @@
+{% extends "base_advanced.html" %}
+
+{% block title %}Criar Conta - FinanPro Advanced{% endblock %}
+
+{% block body_class %}auth-body{% endblock %}
+
+{% block auth_content %}
+<div class="auth-card">
+    <div class="auth-header">
+        <div class="auth-logo">
+            <i class="fas fa-chart-line"></i>
+        </div>
+        <h1 class="auth-title">Criar sua conta</h1>
+        <p class="auth-subtitle">Comece a controlar suas finanças hoje</p>
+    </div>
+
+    <form method="POST" novalidate>
+        {{ form.hidden_tag() }}
+        
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                {{ form.first_name.label(class="form-label form-label-modern") }}
+                {{ form.first_name(class="form-control form-control-modern" + (" is-invalid" if form.first_name.errors else "")) }}
+                {% for error in form.first_name.errors %}
+                    <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+            <div class="col-md-6 mb-3">
+                {{ form.last_name.label(class="form-label form-label-modern") }}
+                {{ form.last_name(class="form-control form-control-modern" + (" is-invalid" if form.last_name.errors else "")) }}
+                {% for error in form.last_name.errors %}
+                    <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="mb-3">
+            {{ form.email.label(class="form-label form-label-modern") }}
+            {{ form.email(class="form-control form-control-modern" + (" is-invalid" if form.email.errors else "")) }}
+            {% for error in form.email.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            {{ form.phone.label(class="form-label form-label-modern") }}
+            {{ form.phone(class="form-control form-control-modern" + (" is-invalid" if form.phone.errors else "")) }}
+            {% for error in form.phone.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            {{ form.password.label(class="form-label form-label-modern") }}
+            <div class="position-relative">
+                {{ form.password(class="form-control form-control-modern" + (" is-invalid" if form.password.errors else "")) }}
+                <button type="button" class="btn btn-link position-absolute end-0 top-50 translate-middle-y me-2" 
+                        onclick="togglePassword('password')" style="border: none; background: none; color: #6b7280;">
+                    <i class="fas fa-eye" id="passwordToggleIcon"></i>
+                </button>
+            </div>
+            {% for error in form.password.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-4">
+            {{ form.password2.label(class="form-label form-label-modern") }}
+            <div class="position-relative">
+                {{ form.password2(class="form-control form-control-modern" + (" is-invalid" if form.password2.errors else "")) }}
+                <button type="button" class="btn btn-link position-absolute end-0 top-50 translate-middle-y me-2" 
+                        onclick="togglePassword('password2')" style="border: none; background: none; color: #6b7280;">
+                    <i class="fas fa-eye" id="password2ToggleIcon"></i>
+                </button>
+            </div>
+            {% for error in form.password2.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="d-grid">
+            {{ form.submit(class="btn btn-success btn-modern btn-lg") }}
+        </div>
+
+        <div class="text-center mt-4">
+            <p class="text-muted mb-2">Já tem uma conta?</p>
+            <a href="{{ url_for('login') }}" class="text-primary text-decoration-none fw-medium">
+                Fazer login
+            </a>
+        </div>
+
+        <div class="text-center mt-3">
+            <p class="text-muted small">
+                Ao criar uma conta, você concorda com nossos 
+                <a href="#" class="text-primary text-decoration-none">Termos de Serviço</a> e 
+                <a href="#" class="text-primary text-decoration-none">Política de Privacidade</a>.
+            </p>
+        </div>
+    </form>
+</div>
+
+<script>
+function togglePassword(fieldId) {
+    const passwordField = document.getElementById(fieldId);
+    const toggleIcon = document.getElementById(fieldId + 'ToggleIcon');
+    
+    if (passwordField.type === 'password') {
+        passwordField.type = 'text';
+        toggleIcon.className = 'fas fa-eye-slash';
+    } else {
+        passwordField.type = 'password';
+        toggleIcon.className = 'fas fa-eye';
+    }
+}
+</script>
+{% endblock %}

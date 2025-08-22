@@ -1,0 +1,143 @@
+{% extends "base_advanced.html" %}
+
+{% block title %}Relatório de Contas - FinanPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <i class="fas fa-wallet me-2"></i>
+                    Relatório de Contas
+                </h1>
+                <div class="page-actions">
+                    <a href="{{ url_for('reports') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Voltar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumo das Contas -->
+    <div class="row g-4">
+        {% for account in accounts_data %}
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h5 class="card-title mb-1">{{ account.name }}</h5>
+                            <p class="card-text text-muted">{{ account.account_type|title }}</p>
+                        </div>
+                        <div class="account-icon">
+                            {% if account.account_type == 'corrente' %}
+                            <i class="fas fa-university text-primary"></i>
+                            {% elif account.account_type == 'poupanca' %}
+                            <i class="fas fa-piggy-bank text-success"></i>
+                            {% elif account.account_type == 'cartao' %}
+                            <i class="fas fa-credit-card text-warning"></i>
+                            {% else %}
+                            <i class="fas fa-wallet text-info"></i>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="account-balance mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Saldo Atual:</span>
+                            <strong class="{% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                R$ {{ "%.2f"|format(account.current_balance or 0) }}
+                            </strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Saldo Inicial:</span>
+                            <span class="text-muted">R$ {{ "%.2f"|format(account.initial_balance or 0) }}</span>
+                        </div>
+                    </div>
+
+                    <div class="account-stats">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="stat-item">
+                                    <div class="stat-value text-success">+ R$ {{ "%.2f"|format(account.total_receitas) }}</div>
+                                    <div class="stat-label">Receitas</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-item">
+                                    <div class="stat-value text-danger">- R$ {{ "%.2f"|format(account.total_despesas) }}</div>
+                                    <div class="stat-label">Despesas</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-item">
+                                    <div class="stat-value text-info">{{ account.qtd_transacoes }}</div>
+                                    <div class="stat-label">Transações</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if account.ultima_transacao %}
+                    <div class="mt-3 pt-3 border-top">
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>
+                            Última transação: {{ account.ultima_transacao }}
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if not accounts_data %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-wallet fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">Nenhuma conta encontrada</h4>
+                    <p class="text-muted">Crie sua primeira conta para ver os relatórios.</p>
+                    <a href="{{ url_for('new_account') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Criar Conta
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.account-icon {
+    font-size: 1.5rem;
+    opacity: 0.7;
+}
+
+.stat-item {
+    padding: 0.5rem 0;
+}
+
+.stat-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+.account-balance {
+    font-size: 0.9rem;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,445 @@
+{% extends "base_advanced.html" %}
+
+{% block title %}Metas Financeiras - FynanPro{% endblock %}
+
+{% block extra_css %}
+<style>
+.goal-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.goal-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.goal-completed {
+    border-color: #00b894;
+    background: linear-gradient(135deg, rgba(0, 184, 148, 0.1) 0%, rgba(85, 239, 196, 0.1) 100%);
+}
+
+.goal-in-progress {
+    border-color: #fdcb6e;
+    background: linear-gradient(135deg, rgba(253, 203, 110, 0.1) 0%, rgba(255, 177, 193, 0.1) 100%);
+}
+
+.goal-starting {
+    border-color: #6c5ce7;
+    background: linear-gradient(135deg, rgba(108, 92, 231, 0.1) 0%, rgba(162, 155, 254, 0.1) 100%);
+}
+
+.goal-progress {
+    background: #f1f2f6;
+    border-radius: 10px;
+    overflow: hidden;
+    height: 12px;
+    margin: 1rem 0;
+}
+
+.goal-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #00b894, #55efc4);
+    transition: width 0.5s ease;
+    border-radius: 10px;
+}
+
+.goal-category {
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: white;
+    display: inline-block;
+    margin-bottom: 1rem;
+}
+
+.category-house { background: linear-gradient(45deg, #667eea, #764ba2); }
+.category-car { background: linear-gradient(45deg, #f093fb, #f5576c); }
+.category-vacation { background: linear-gradient(45deg, #4facfe, #00f2fe); }
+.category-education { background: linear-gradient(45deg, #43e97b, #38f9d7); }
+.category-emergency { background: linear-gradient(45deg, #fa709a, #fee140); }
+.category-other { background: linear-gradient(45deg, #a8edea, #fed6e3); }
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 15px;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 24px;
+    margin: 0 auto 1rem;
+}
+
+.btn-contribute {
+    background: linear-gradient(45deg, #00b894, #55efc4);
+    border: none;
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border-radius: 20px;
+    transition: all 0.3s ease;
+}
+
+.btn-contribute:hover {
+    transform: translateY(-1px);
+    color: white;
+}
+
+.btn-create {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    border: none;
+    color: white;
+    padding: 0.75rem 2rem;
+    border-radius: 25px;
+    transition: all 0.3s ease;
+}
+
+.btn-create:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+    color: white;
+}
+
+.goal-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.days-remaining {
+    background: #f8f9fa;
+    padding: 0.5rem;
+    border-radius: 10px;
+    text-align: center;
+    margin-top: 1rem;
+}
+
+.deadline-soon {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.deadline-passed {
+    background: #f8d7da;
+    color: #721c24;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-0">🎯 Metas Financeiras</h2>
+                    <p class="text-muted">Defina e acompanhe seus objetivos financeiros</p>
+                </div>
+                <button class="btn btn-create" data-bs-toggle="modal" data-bs-target="#createGoalModal">
+                    <i class="fas fa-plus me-2"></i>Nova Meta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estatísticas -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon icon-blue">
+                <i class="fas fa-bullseye"></i>
+            </div>
+            <h4>{{ total_goals }}</h4>
+            <p class="text-muted mb-0">Metas Ativas</p>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon icon-green">
+                <i class="fas fa-dollar-sign"></i>
+            </div>
+            <h4>R$ {{ "%.2f"|format(total_target) }}</h4>
+            <p class="text-muted mb-0">Valor Total das Metas</p>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon icon-purple">
+                <i class="fas fa-piggy-bank"></i>
+            </div>
+            <h4>R$ {{ "%.2f"|format(total_saved) }}</h4>
+            <p class="text-muted mb-0">Total Economizado</p>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon {% if completed_goals > 0 %}icon-green{% else %}icon-blue{% endif %}">
+                <i class="fas fa-trophy"></i>
+            </div>
+            <h4>{{ completed_goals }}</h4>
+            <p class="text-muted mb-0">Metas Concluídas</p>
+        </div>
+    </div>
+
+    <!-- Lista de Metas -->
+    <div class="row">
+        {% for goal in active_goals %}
+        {% set progress_percentage = (goal.saved_amount / goal.target_amount * 100) if goal.target_amount > 0 else 0 %}
+        {% set days_remaining = ((goal.target_date | strptime('%Y-%m-%d')) - (moment().date())) %}
+        <div class="col-md-6 col-lg-4">
+            <div class="goal-card {% if progress_percentage >= 100 %}goal-completed{% elif progress_percentage > 0 %}goal-in-progress{% else %}goal-starting{% endif %}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div class="goal-category category-{{ goal.category }}">
+                        {% if goal.category == 'house' %}🏠 Casa
+                        {% elif goal.category == 'car' %}🚗 Carro
+                        {% elif goal.category == 'vacation' %}✈️ Viagem
+                        {% elif goal.category == 'education' %}📚 Educação
+                        {% elif goal.category == 'emergency' %}🚨 Emergência
+                        {% else %}💼 Outros
+                        {% endif %}
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-sm" data-bs-toggle="dropdown">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <form method="POST" action="{{ url_for('delete_goal', goal_id=goal.id) }}" class="d-inline">
+                                    <button type="submit" class="dropdown-item text-danger" onclick="return confirm('Tem certeza?')">
+                                        <i class="fas fa-trash me-2"></i>Excluir
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h5 class="mb-2">{{ goal.name }}</h5>
+                {% if goal.description %}
+                <p class="text-muted small mb-3">{{ goal.description }}</p>
+                {% endif %}
+
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Economizado:</span>
+                    <strong>R$ {{ "%.2f"|format(goal.saved_amount) }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Meta:</span>
+                    <strong>R$ {{ "%.2f"|format(goal.target_amount) }}</strong>
+                </div>
+
+                <div class="goal-progress">
+                    <div class="goal-progress-bar" style="width: {{ min(progress_percentage, 100) }}%;"></div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-sm">{{ "%.1f"|format(progress_percentage) }}% concluído</span>
+                    <span class="text-sm">
+                        {% if progress_percentage >= 100 %}
+                            <i class="fas fa-trophy text-success me-1"></i>
+                            Concluída!
+                        {% else %}
+                            Faltam R$ {{ "%.2f"|format(goal.target_amount - goal.saved_amount) }}
+                        {% endif %}
+                    </span>
+                </div>
+
+                <!-- Prazo -->
+                <div class="days-remaining {% if goal.target_date < moment().strftime('%Y-%m-%d') %}deadline-passed{% elif (goal.target_date | strptime('%Y-%m-%d')) < (moment() + timedelta(days=30)).date() %}deadline-soon{% endif %}">
+                    <small>
+                        <i class="fas fa-calendar me-1"></i>
+                        Prazo: {{ goal.target_date|strftime('%d/%m/%Y') }}
+                        {% if goal.target_date < moment().strftime('%Y-%m-%d') %}
+                            (Vencido)
+                        {% endif %}
+                    </small>
+                </div>
+
+                <!-- Ações -->
+                <div class="goal-actions">
+                    {% if progress_percentage < 100 %}
+                    <button class="btn btn-contribute btn-sm flex-fill" 
+                            onclick="contributeToGoal({{ goal.id }}, '{{ goal.name }}')">
+                        <i class="fas fa-plus me-1"></i>Contribuir
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if not active_goals %}
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i class="fas fa-bullseye fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">Nenhuma meta criada</h4>
+                <p class="text-muted">Defina suas metas financeiras para alcançar seus objetivos</p>
+                <button class="btn btn-create" data-bs-toggle="modal" data-bs-target="#createGoalModal">
+                    <i class="fas fa-plus me-2"></i>Criar Primeira Meta
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Criar Meta -->
+<div class="modal fade" id="createGoalModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nova Meta Financeira</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('create_goal') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nome da Meta</label>
+                        <input type="text" class="form-control" id="name" name="name" 
+                               placeholder="Ex: Viagem para Europa" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descrição (opcional)</label>
+                        <textarea class="form-control" id="description" name="description" rows="2"
+                                  placeholder="Detalhes sobre sua meta..."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Categoria</label>
+                        <select class="form-select" id="category" name="category" required>
+                            <option value="house">🏠 Casa</option>
+                            <option value="car">🚗 Carro</option>
+                            <option value="vacation">✈️ Viagem</option>
+                            <option value="education">📚 Educação</option>
+                            <option value="emergency">🚨 Emergência</option>
+                            <option value="other">💼 Outros</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="target_amount" class="form-label">Valor da Meta</label>
+                        <input type="number" class="form-control" id="target_amount" name="target_amount" 
+                               step="0.01" min="0" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="target_date" class="form-label">Data Limite</label>
+                        <input type="date" class="form-control" id="target_date" name="target_date" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-create">Criar Meta</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Contribuir -->
+<div class="modal fade" id="contributeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Contribuir para Meta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="contributeForm">
+                <div class="modal-body">
+                    <p>Contribuindo para: <strong id="goal-name"></strong></p>
+                    
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Valor da Contribuição</label>
+                        <input type="number" class="form-control" id="contribute_amount" name="amount" 
+                               step="0.01" min="0.01" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="contribute_description" class="form-label">Descrição (opcional)</label>
+                        <input type="text" class="form-control" id="contribute_description" name="description" 
+                               placeholder="Ex: Economia do mês">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-contribute">Adicionar Contribuição</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Definir data mínima como hoje
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('target_date').min = today;
+});
+
+// Função para contribuir para meta
+function contributeToGoal(goalId, goalName) {
+    document.getElementById('goal-name').textContent = goalName;
+    document.getElementById('contributeForm').action = `/goals/contribute/${goalId}`;
+    
+    const contributeModal = new bootstrap.Modal(document.getElementById('contributeModal'));
+    contributeModal.show();
+}
+
+// Auto-focus nos modais
+document.getElementById('createGoalModal').addEventListener('shown.bs.modal', function() {
+    document.getElementById('name').focus();
+});
+
+document.getElementById('contributeModal').addEventListener('shown.bs.modal', function() {
+    document.getElementById('contribute_amount').focus();
+});
+
+// Validação de data
+document.getElementById('target_date').addEventListener('change', function() {
+    const selectedDate = new Date(this.value);
+    const today = new Date();
+    
+    if (selectedDate <= today) {
+        alert('A data limite deve ser futura');
+        this.value = '';
+    }
+});
+
+// Formatação de valores
+document.getElementById('target_amount').addEventListener('input', function() {
+    if (this.value < 0) {
+        this.value = 0;
+    }
+});
+
+document.getElementById('contribute_amount').addEventListener('input', function() {
+    if (this.value < 0) {
+        this.value = 0;
+    }
+});
+</script>
+{% endblock %}

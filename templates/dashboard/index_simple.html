@@ -1,0 +1,217 @@
+{% extends "base_advanced.html" %}
+
+{% block title %}Dashboard - FinanPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <i class="fas fa-home me-2"></i>
+                    Dashboard
+                    <small class="text-muted">Visão geral das suas finanças</small>
+                </h1>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cards de Resumo -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h3 class="card-title">R$ {{ "%.2f"|format(monthly_income) }}</h3>
+                            <p class="card-text">Receitas do Mês</p>
+                        </div>
+                        <div class="card-icon">
+                            <i class="fas fa-arrow-up fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h3 class="card-title">R$ {{ "%.2f"|format(monthly_expenses) }}</h3>
+                            <p class="card-text">Despesas do Mês</p>
+                        </div>
+                        <div class="card-icon">
+                            <i class="fas fa-arrow-down fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h3 class="card-title">R$ {{ "%.2f"|format(monthly_income - monthly_expenses) }}</h3>
+                            <p class="card-text">Saldo do Mês</p>
+                        </div>
+                        <div class="card-icon">
+                            <i class="fas fa-balance-scale fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h3 class="card-title">R$ {{ "%.2f"|format(user_accounts|sum(attribute='current_balance') or 0) }}</h3>
+                            <p class="card-text">Saldo Total</p>
+                        </div>
+                        <div class="card-icon">
+                            <i class="fas fa-piggy-bank fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Transações Recentes -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-clock me-2"></i>Transações Recentes
+                    </h5>
+                    <a href="{{ url_for('transactions') }}" class="btn btn-sm btn-outline-primary">
+                        Ver todas <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Data</th>
+                                <th>Descrição</th>
+                                <th>Conta</th>
+                                <th>Tipo</th>
+                                <th class="text-end">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in recent_transactions %}
+                            <tr class="{% if not transaction.is_confirmed %}table-warning{% endif %}">
+                                <td>
+                                    <small class="fw-bold">{{ transaction.date|strftime('%d/%m') }}</small>
+                                </td>
+                                <td>
+                                    <div class="fw-bold">{{ transaction.description }}</div>
+                                    {% if transaction.category_name %}
+                                    <small class="text-muted">{{ transaction.category_name }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ transaction.account_name }}</small>
+                                </td>
+                                <td>
+                                    {% if transaction.transaction_type == 'receita' %}
+                                    <span class="badge bg-success">Receita</span>
+                                    {% elif transaction.transaction_type == 'despesa' %}
+                                    <span class="badge bg-danger">Despesa</span>
+                                    {% else %}
+                                    <span class="badge bg-info">Transfer</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold
+                                        {% if transaction.transaction_type == 'receita' %}text-success
+                                        {% elif transaction.transaction_type == 'despesa' %}text-danger
+                                        {% else %}text-info{% endif %}">
+                                        {% if transaction.transaction_type == 'receita' %}+{% elif transaction.transaction_type == 'despesa' %}-{% endif %}
+                                        R$ {{ "%.2f"|format(transaction.amount|abs) }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4">
+                                    <div class="text-muted">
+                                        <i class="fas fa-inbox fa-2x mb-2"></i>
+                                        <p>Nenhuma transação encontrada</p>
+                                        <a href="{{ url_for('new_transaction') }}" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-plus me-2"></i>Criar primeira transação
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resumo por Conta -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-wallet me-2"></i>Saldos das Contas
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% for account in user_accounts %}
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                        <div>
+                            <div class="fw-bold">{{ account.name }}</div>
+                            <small class="text-muted">{{ account.account_type|title }}</small>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-bold {% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                R$ {{ "%.2f"|format(account.current_balance or 0) }}
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-wallet fa-2x mb-2"></i>
+                        <p>Nenhuma conta cadastrada</p>
+                        <a href="{{ url_for('new_account') }}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-plus me-2"></i>Criar conta
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Ações Rápidas -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-bolt me-2"></i>Ações Rápidas
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('new_transaction') }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Nova Transação
+                        </a>
+                        <a href="{{ url_for('new_account') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-wallet me-2"></i>Nova Conta
+                        </a>
+                        <a href="{{ url_for('transactions') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-list me-2"></i>Ver Transações
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

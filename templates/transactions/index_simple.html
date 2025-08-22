@@ -1,0 +1,307 @@
+{% extends "base_simple.html" %}
+
+{% block title %}Transações - FinanPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <i class="fas fa-exchange-alt me-2"></i>
+                    Transações
+                    <span class="badge bg-secondary ms-2">{{ total }} total</span>
+                </h1>
+                <div class="page-actions">
+                    <a href="{{ url_for('new_transaction') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Nova Transação
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros Avançados -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-filter me-2"></i>Filtros
+                        <button class="btn btn-sm btn-outline-primary ms-2" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </h5>
+                </div>
+                <div class="collapse {% if filters.start_date or filters.end_date or filters.account_id or filters.transaction_type or filters.search %}show{% endif %}" id="filterCollapse">
+                    <div class="card-body">
+                        <form method="GET" action="{{ url_for('transactions') }}">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="start_date" class="form-label">Data Inicial</label>
+                                    <input type="date" class="form-control" id="start_date" name="start_date" value="{{ filters.start_date or '' }}">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="end_date" class="form-label">Data Final</label>
+                                    <input type="date" class="form-control" id="end_date" name="end_date" value="{{ filters.end_date or '' }}">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="account_id" class="form-label">Conta</label>
+                                    <select class="form-select" id="account_id" name="account_id">
+                                        <option value="">Todas as contas</option>
+                                        {% for account in user_accounts %}
+                                        <option value="{{ account.id }}" {% if filters.account_id == account.id|string %}selected{% endif %}>
+                                            {{ account.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="transaction_type" class="form-label">Tipo</label>
+                                    <select class="form-select" id="transaction_type" name="transaction_type">
+                                        <option value="">Todos os tipos</option>
+                                        <option value="receita" {% if filters.transaction_type == 'receita' %}selected{% endif %}>Receita</option>
+                                        <option value="despesa" {% if filters.transaction_type == 'despesa' %}selected{% endif %}>Despesa</option>
+                                        <option value="transferencia" {% if filters.transaction_type == 'transferencia' %}selected{% endif %}>Transferência</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="search" class="form-label">Busca</label>
+                                    <input type="text" class="form-control" id="search" name="search" placeholder="Descrição, referência ou observações..." value="{{ filters.search or '' }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-end gap-2 h-100">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-search me-2"></i>Filtrar
+                                        </button>
+                                        <a href="{{ url_for('transactions') }}" class="btn btn-outline-secondary">
+                                            <i class="fas fa-eraser me-2"></i>Limpar
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Transações -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Data</th>
+                                <th>Descrição</th>
+                                <th>Conta</th>
+                                <th>Categoria</th>
+                                <th>Tipo</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                                <th width="120">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in transactions %}
+                            <tr class="{% if not transaction.is_confirmed %}table-warning{% endif %}">
+                                <td>
+                                    <div class="fw-bold">{{ transaction.date|strftime('%d/%m/%Y') }}</div>
+                                    {% if transaction.reference %}
+                                    <small class="text-muted">{{ transaction.reference }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="fw-bold">{{ transaction.description }}</div>
+                                    {% if transaction.notes %}
+                                    <small class="text-muted">{{ transaction.notes }}</small>
+                                    {% endif %}
+                                    {% if transaction.tags %}
+                                    <div class="mt-1">
+                                        {% for tag in transaction.tags.split(',') %}
+                                        <span class="badge bg-info me-1">{{ tag.strip() }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="fw-bold">{{ transaction.account_name }}</span>
+                                    {% if transaction.transfer_account_name %}
+                                    <div class="text-muted small">
+                                        <i class="fas fa-arrow-right"></i> {{ transaction.transfer_account_name }}
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transaction.category_name %}
+                                    <span class="badge bg-secondary">{{ transaction.category_name }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transaction.transaction_type == 'receita' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-arrow-up me-1"></i>Receita
+                                    </span>
+                                    {% elif transaction.transaction_type == 'despesa' %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-arrow-down me-1"></i>Despesa
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-exchange-alt me-1"></i>Transferência
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="fw-bold
+                                        {% if transaction.transaction_type == 'receita' %}text-success
+                                        {% elif transaction.transaction_type == 'despesa' %}text-danger
+                                        {% else %}text-info{% endif %}">
+                                        {% if transaction.transaction_type == 'receita' %}+{% elif transaction.transaction_type == 'despesa' %}-{% endif %}
+                                        R$ {{ "%.2f"|format(transaction.amount|abs) }}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if transaction.is_confirmed %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check me-1"></i>Confirmada
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-clock me-1"></i>Pendente
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{{ url_for('edit_transaction', id=transaction.id) }}" 
+                                           class="btn btn-outline-primary" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-danger" 
+                                                onclick="confirmDelete({{ transaction.id }})" title="Excluir">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <div class="text-muted">
+                                        <i class="fas fa-inbox fa-2x mb-2"></i>
+                                        <p>Nenhuma transação encontrada</p>
+                                        <a href="{{ url_for('new_transaction') }}" class="btn btn-primary">
+                                            <i class="fas fa-plus me-2"></i>Criar primeira transação
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginação -->
+                {% if pagination.total_pages > 1 %}
+                <div class="card-footer">
+                    <nav aria-label="Navegação de páginas">
+                        <ul class="pagination justify-content-center mb-0">
+                            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                                <a class="page-link" href="{% if pagination.has_prev %}{{ url_for('transactions', page=pagination.prev_num, **filters) }}{% else %}#{% endif %}">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            </li>
+                            
+                            {% for page_num in range(1, pagination.total_pages + 1) %}
+                                {% if page_num == pagination.page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                                {% elif page_num == 1 or page_num == pagination.total_pages or (page_num >= pagination.page - 2 and page_num <= pagination.page + 2) %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('transactions', page=page_num, **filters) }}">{{ page_num }}</a>
+                                </li>
+                                {% elif page_num == pagination.page - 3 or page_num == pagination.page + 3 %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                                <a class="page-link" href="{% if pagination.has_next %}{{ url_for('transactions', page=pagination.next_num, **filters) }}{% else %}#{% endif %}">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir esta transação?</p>
+                <p class="text-danger"><small>Esta ação não pode ser desfeita.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="deleteForm" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-2"></i>Excluir
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmDelete(transactionId) {
+    const form = document.getElementById('deleteForm');
+    form.action = `/transactions/${transactionId}/delete`;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+}
+
+// Auto-submit do formulário de filtros quando mudar datas
+document.getElementById('start_date').addEventListener('change', function() {
+    if (this.value && document.getElementById('end_date').value) {
+        this.form.submit();
+    }
+});
+
+document.getElementById('end_date').addEventListener('change', function() {
+    if (this.value && document.getElementById('start_date').value) {
+        this.form.submit();
+    }
+});
+
+// Auto-submit para selects
+document.getElementById('account_id').addEventListener('change', function() {
+    this.form.submit();
+});
+
+document.getElementById('transaction_type').addEventListener('change', function() {
+    this.form.submit();
+});
+</script>
+{% endblock %}

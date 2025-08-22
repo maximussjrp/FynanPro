@@ -1,0 +1,490 @@
+{% extends "base_advanced.html" %}
+
+{% block title %}Planejamento Financeiro - FynanPro{% endblock %}
+
+{% block extra_css %}
+<style>
+.planning-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.summary-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+    transition: transform 0.2s ease;
+    border-left: 4px solid transparent;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+}
+
+.card-budgets { border-left-color: #6c5ce7; }
+.card-goals { border-left-color: #00b894; }
+.card-spending { border-left-color: #fd79a8; }
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f1f2f6;
+}
+
+.stat-item:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    color: #666;
+    font-weight: 500;
+}
+
+.stat-value {
+    font-weight: 600;
+}
+
+.progress-ring {
+    width: 120px;
+    height: 120px;
+    margin: 1rem auto;
+}
+
+.progress-circle {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: conic-gradient(
+        #00b894 0deg,
+        #00b894 calc(var(--progress) * 3.6deg),
+        #f1f2f6 calc(var(--progress) * 3.6deg),
+        #f1f2f6 360deg
+    );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.progress-circle::before {
+    content: '';
+    width: 80px;
+    height: 80px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+}
+
+.progress-text {
+    position: relative;
+    z-index: 1;
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: #333;
+}
+
+.upcoming-goals {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+}
+
+.goal-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    margin: 0.5rem 0;
+    background: #f8f9fa;
+    border-radius: 10px;
+    transition: background 0.2s ease;
+}
+
+.goal-item:hover {
+    background: #e9ecef;
+}
+
+.goal-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+}
+
+.goal-info {
+    flex-grow: 1;
+}
+
+.goal-name {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.goal-progress {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.goal-date {
+    font-size: 0.85rem;
+    color: #999;
+    text-align: right;
+}
+
+.spending-chart {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.category-bar {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 10px;
+}
+
+.category-icon {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    background: linear-gradient(45deg, #fd79a8, #fdcb6e);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 0.9rem;
+}
+
+.category-info {
+    flex-grow: 1;
+}
+
+.category-name {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.category-amount {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.category-progress {
+    background: #e9ecef;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+}
+
+.category-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #fd79a8, #fdcb6e);
+    transition: width 0.5s ease;
+}
+
+.alert-item {
+    padding: 1rem;
+    margin: 0.5rem 0;
+    border-radius: 10px;
+    border-left: 4px solid;
+    background: white;
+}
+
+.alert-warning {
+    border-left-color: #fdcb6e;
+    background: #fffbf0;
+}
+
+.alert-danger {
+    border-left-color: #e17055;
+    background: #fff5f5;
+}
+
+.quick-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.action-btn {
+    flex: 1;
+    min-width: 200px;
+    padding: 1rem;
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    text-decoration: none;
+    color: #333;
+    transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+    border-color: #667eea;
+    color: #667eea;
+    transform: translateY(-1px);
+}
+
+.action-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: #667eea;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <!-- Header -->
+    <div class="planning-header">
+        <h2 class="mb-2">📊 Planejamento Financeiro</h2>
+        <p class="mb-0 opacity-75">Visão geral dos seus orçamentos, metas e gastos</p>
+    </div>
+
+    <!-- Resumo Executivo -->
+    <div class="row mb-4">
+        <!-- Orçamentos -->
+        <div class="col-md-4">
+            <div class="summary-card card-budgets">
+                <h5 class="mb-3">
+                    <i class="fas fa-wallet me-2"></i>Orçamentos
+                </h5>
+                
+                {% if budget_summary %}
+                <div class="stat-item">
+                    <span class="stat-label">Total de Orçamentos:</span>
+                    <span class="stat-value">{{ budget_summary.total_budgets or 0 }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Valor Total:</span>
+                    <span class="stat-value">R$ {{ "%.2f"|format(budget_summary.total_budget or 0) }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Acima do Limite:</span>
+                    <span class="stat-value text-danger">{{ budget_summary.over_budget_count or 0 }}</span>
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <p class="text-muted mb-2">Nenhum orçamento criado</p>
+                    <a href="{{ url_for('budgets') }}" class="btn btn-sm btn-primary">Criar Orçamento</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Metas -->
+        <div class="col-md-4">
+            <div class="summary-card card-goals">
+                <h5 class="mb-3">
+                    <i class="fas fa-bullseye me-2"></i>Metas
+                </h5>
+                
+                {% if goal_summary %}
+                <div class="stat-item">
+                    <span class="stat-label">Metas Ativas:</span>
+                    <span class="stat-value">{{ goal_summary.total_goals or 0 }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Valor das Metas:</span>
+                    <span class="stat-value">R$ {{ "%.2f"|format(goal_summary.total_target or 0) }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Total Economizado:</span>
+                    <span class="stat-value text-success">R$ {{ "%.2f"|format(goal_summary.total_saved or 0) }}</span>
+                </div>
+
+                <!-- Progress Ring -->
+                {% if goal_summary.total_target > 0 %}
+                {% set progress_percent = (goal_summary.total_saved / goal_summary.total_target * 100) %}
+                <div class="progress-ring">
+                    <div class="progress-circle" style="--progress: {{ progress_percent }}">
+                        <div class="progress-text">{{ "%.0f"|format(progress_percent) }}%</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="text-center py-3">
+                    <p class="text-muted mb-2">Nenhuma meta criada</p>
+                    <a href="{{ url_for('goals') }}" class="btn btn-sm btn-success">Criar Meta</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Resumo de Gastos -->
+        <div class="col-md-4">
+            <div class="summary-card card-spending">
+                <h5 class="mb-3">
+                    <i class="fas fa-chart-line me-2"></i>Gastos Recentes
+                </h5>
+                
+                {% if spending_analysis %}
+                {% for category in spending_analysis[:3] %}
+                <div class="stat-item">
+                    <span class="stat-label">
+                        {{ category.icon or '📁' }} {{ category.category }}
+                    </span>
+                    <span class="stat-value">R$ {{ "%.2f"|format(category.spent) }}</span>
+                </div>
+                {% endfor %}
+                
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('reports') }}" class="btn btn-sm btn-outline-primary">Ver Relatórios</a>
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <p class="text-muted mb-0">Sem dados de gastos</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Próximas Metas -->
+    {% if upcoming_goals %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="upcoming-goals">
+                <h5 class="mb-3">
+                    <i class="fas fa-calendar-alt me-2"></i>Próximas Metas
+                </h5>
+                
+                {% for goal in upcoming_goals %}
+                {% set progress_percent = (goal.saved_amount / goal.target_amount * 100) if goal.target_amount > 0 else 0 %}
+                <div class="goal-item">
+                    <div class="goal-icon">
+                        <i class="fas fa-target"></i>
+                    </div>
+                    <div class="goal-info">
+                        <div class="goal-name">{{ goal.name }}</div>
+                        <div class="goal-progress">
+                            R$ {{ "%.2f"|format(goal.saved_amount) }} de R$ {{ "%.2f"|format(goal.target_amount) }} 
+                            ({{ "%.1f"|format(progress_percent) }}%)
+                        </div>
+                    </div>
+                    <div class="goal-date">
+                        {{ goal.target_date|strftime('%d/%m/%Y') }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Análise de Gastos por Categoria -->
+    {% if spending_analysis %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="spending-chart">
+                <h5 class="mb-3">
+                    <i class="fas fa-chart-bar me-2"></i>Gastos por Categoria (Últimos 3 Meses)
+                </h5>
+                
+                {% set max_spent = spending_analysis[0].spent if spending_analysis else 1 %}
+                {% for category in spending_analysis %}
+                {% set width_percent = (category.spent / max_spent * 100) if max_spent > 0 else 0 %}
+                <div class="category-bar">
+                    <div class="category-icon">
+                        {{ category.icon or '📁' }}
+                    </div>
+                    <div class="category-info">
+                        <div class="category-name">{{ category.category }}</div>
+                        <div class="category-amount">
+                            R$ {{ "%.2f"|format(category.spent) }} • 
+                            {{ category.transaction_count }} transações • 
+                            Média: R$ {{ "%.2f"|format(category.avg_transaction) }}
+                        </div>
+                        <div class="category-progress">
+                            <div class="category-progress-bar" style="width: {{ width_percent }}%"></div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Ações Rápidas -->
+    <div class="row">
+        <div class="col-12">
+            <h5 class="mb-3">⚡ Ações Rápidas</h5>
+            <div class="quick-actions">
+                <a href="{{ url_for('budgets') }}" class="action-btn">
+                    <div class="action-icon">
+                        <i class="fas fa-wallet"></i>
+                    </div>
+                    <div class="fw-bold">Gerenciar Orçamentos</div>
+                    <div class="text-muted small">Criar e acompanhar orçamentos</div>
+                </a>
+                
+                <a href="{{ url_for('goals') }}" class="action-btn">
+                    <div class="action-icon">
+                        <i class="fas fa-bullseye"></i>
+                    </div>
+                    <div class="fw-bold">Definir Metas</div>
+                    <div class="text-muted small">Estabelecer objetivos financeiros</div>
+                </a>
+                
+                <a href="{{ url_for('reports') }}" class="action-btn">
+                    <div class="action-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="fw-bold">Ver Relatórios</div>
+                    <div class="text-muted small">Analisar gastos e receitas</div>
+                </a>
+                
+                <a href="{{ url_for('transactions') }}" class="action-btn">
+                    <div class="action-icon">
+                        <i class="fas fa-plus-circle"></i>
+                    </div>
+                    <div class="fw-bold">Nova Transação</div>
+                    <div class="text-muted small">Registrar receita ou despesa</div>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Animações de progresso
+document.addEventListener('DOMContentLoaded', function() {
+    // Animar barras de progresso de categorias
+    const progressBars = document.querySelectorAll('.category-progress-bar');
+    progressBars.forEach(bar => {
+        const width = bar.style.width;
+        bar.style.width = '0%';
+        setTimeout(() => {
+            bar.style.width = width;
+        }, 100);
+    });
+});
+
+// Atualização automática (opcional)
+// setInterval(() => {
+//     location.reload();
+// }, 300000); // 5 minutos
+</script>
+{% endblock %}

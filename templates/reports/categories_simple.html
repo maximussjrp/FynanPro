@@ -1,0 +1,316 @@
+{% extends "base_advanced.html" %}
+
+{% block title %}Análise por Categorias - FinanPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <i class="fas fa-chart-pie me-2"></i>
+                    Análise por Categorias
+                </h1>
+                <div class="page-actions">
+                    <a href="{{ url_for('reports') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Voltar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="GET" action="{{ url_for('categories_report') }}">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-3">
+                                <label for="start_date" class="form-label">Data Inicial</label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" 
+                                       value="{{ start_date }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="end_date" class="form-label">Data Final</label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" 
+                                       value="{{ end_date }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="transaction_type" class="form-label">Tipo de Transação</label>
+                                <select class="form-select" id="transaction_type" name="transaction_type">
+                                    <option value="despesa" {% if transaction_type == 'despesa' %}selected{% endif %}>
+                                        💸 Despesas
+                                    </option>
+                                    <option value="receita" {% if transaction_type == 'receita' %}selected{% endif %}>
+                                        💰 Receitas
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-search me-2"></i>Filtrar
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Gráfico de Pizza -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>
+                        Distribuição por Categoria
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div style="height: 400px;">
+                        <canvas id="categoriesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico de Barras -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        Ranking por Valor
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div style="height: 400px;">
+                        <canvas id="categoriesBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela Detalhada -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-table me-2"></i>
+                        Detalhamento por Categoria
+                    </h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Ranking</th>
+                                <th>Categoria</th>
+                                <th>Código</th>
+                                <th class="text-center">Qtd. Transações</th>
+                                <th class="text-end">Valor Médio</th>
+                                <th class="text-end">Total</th>
+                                <th class="text-end">% do Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set total_geral = categories_data|sum(attribute='total') %}
+                            {% for category in categories_data %}
+                            {% set percentual = (category.total / total_geral * 100) if total_geral > 0 else 0 %}
+                            <tr>
+                                <td>
+                                    <div class="rank-badge">
+                                        {% if loop.index <= 3 %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-trophy"></i> {{ loop.index }}º
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ loop.index }}º</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="fw-bold">{{ category.categoria }}</div>
+                                </td>
+                                <td>
+                                    <code class="text-muted">{{ category.codigo }}</code>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-info">{{ category.qtd_transacoes }}</span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="text-muted">
+                                        R$ {{ "%.2f"|format(category.valor_medio) }}
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <strong class="{% if transaction_type == 'receita' %}text-success{% else %}text-danger{% endif %}">
+                                        R$ {{ "%.2f"|format(category.total) }}
+                                    </strong>
+                                </td>
+                                <td class="text-end">
+                                    <div class="progress-container">
+                                        <strong>{{ "%.1f"|format(percentual) }}%</strong>
+                                        <div class="progress mt-1" style="height: 6px;">
+                                            <div class="progress-bar {% if transaction_type == 'receita' %}bg-success{% else %}bg-danger{% endif %}"
+                                                 style="width: {{ percentual }}%"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <div class="text-muted">
+                                        <i class="fas fa-chart-pie fa-2x mb-2"></i>
+                                        <p>Nenhuma categoria encontrada para o período</p>
+                                        <small>Ajuste os filtros ou adicione transações com categorias</small>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        {% if categories_data %}
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="5">TOTAL GERAL</th>
+                                <th class="text-end">
+                                    <strong class="{% if transaction_type == 'receita' %}text-success{% else %}text-danger{% endif %}">
+                                        R$ {{ "%.2f"|format(total_geral) }}
+                                    </strong>
+                                </th>
+                                <th class="text-end">
+                                    <strong>100%</strong>
+                                </th>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chartData = {{ chart_data|tojson }};
+    const transactionType = '{{ transaction_type }}';
+    
+    // Cores para os gráficos
+    const colors = [
+        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+        '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384',
+        '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'
+    ];
+    
+    if (chartData.labels.length > 0) {
+        // Gráfico de Pizza
+        const pieCtx = document.getElementById('categoriesChart').getContext('2d');
+        new Chart(pieCtx, {
+            type: 'doughnut',
+            data: {
+                labels: chartData.labels,
+                datasets: [{
+                    data: chartData.values,
+                    backgroundColor: colors.slice(0, chartData.labels.length),
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed;
+                                const total = chartData.values.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return context.label + ': R$ ' + value.toLocaleString('pt-BR') + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Gráfico de Barras
+        const barCtx = document.getElementById('categoriesBarChart').getContext('2d');
+        new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: chartData.labels,
+                datasets: [{
+                    label: transactionType === 'receita' ? 'Receitas' : 'Despesas',
+                    data: chartData.values,
+                    backgroundColor: transactionType === 'receita' ? 
+                        colors.map(color => color + '80') : 
+                        colors.map(color => color + '80'),
+                    borderColor: colors.slice(0, chartData.labels.length),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return 'R$ ' + value.toLocaleString('pt-BR');
+                            }
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            maxTicksLimit: 10
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        // Mostrar mensagem quando não há dados
+        document.getElementById('categoriesChart').innerHTML = 
+            '<div class="text-center p-5"><i class="fas fa-chart-pie fa-3x text-muted mb-3"></i><p class="text-muted">Nenhum dado para exibir</p></div>';
+        document.getElementById('categoriesBarChart').innerHTML = 
+            '<div class="text-center p-5"><i class="fas fa-chart-bar fa-3x text-muted mb-3"></i><p class="text-muted">Nenhum dado para exibir</p></div>';
+    }
+});
+</script>
+
+<style>
+.progress-container {
+    min-width: 80px;
+}
+
+.rank-badge {
+    display: flex;
+    justify-content: center;
+}
+</style>
+{% endblock %}

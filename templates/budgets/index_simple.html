@@ -1,0 +1,369 @@
+{% extends "base_advanced.html" %}
+
+{% block title %}Orçamentos - FynanPro{% endblock %}
+
+{% block extra_css %}
+<style>
+.budget-card {
+    background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.budget-progress {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    overflow: hidden;
+    height: 8px;
+    margin: 1rem 0;
+}
+
+.budget-progress-bar {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.budget-over {
+    background: linear-gradient(135deg, #e17055 0%, #fd79a8 100%);
+}
+
+.budget-warning {
+    background: linear-gradient(135deg, #fdcb6e 0%, #e17055 100%);
+}
+
+.stats-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+    transition: transform 0.2s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 24px;
+    margin-bottom: 1rem;
+}
+
+.icon-blue { background: linear-gradient(45deg, #667eea, #764ba2); }
+.icon-green { background: linear-gradient(45deg, #56ab2f, #a8e6cf); }
+.icon-red { background: linear-gradient(45deg, #ee0979, #ff6a00); }
+.icon-purple { background: linear-gradient(45deg, #667eea, #764ba2); }
+
+.btn-create {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    border: none;
+    color: white;
+    padding: 0.75rem 2rem;
+    border-radius: 25px;
+    transition: all 0.3s ease;
+}
+
+.btn-create:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+    color: white;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-0">💰 Orçamentos</h2>
+                    <p class="text-muted">Controle seus gastos por categoria</p>
+                </div>
+                <button class="btn btn-create" data-bs-toggle="modal" data-bs-target="#createBudgetModal">
+                    <i class="fas fa-plus me-2"></i>Novo Orçamento
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estatísticas -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="stats-card text-center">
+                <div class="stat-icon icon-blue mx-auto">
+                    <i class="fas fa-wallet"></i>
+                </div>
+                <h4>{{ total_budgets }}</h4>
+                <p class="text-muted mb-0">Orçamentos Ativos</p>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="stats-card text-center">
+                <div class="stat-icon icon-green mx-auto">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <h4>R$ {{ "%.2f"|format(total_budget_amount) }}</h4>
+                <p class="text-muted mb-0">Total Orçado</p>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="stats-card text-center">
+                <div class="stat-icon icon-purple mx-auto">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <h4>R$ {{ "%.2f"|format(total_spent) }}</h4>
+                <p class="text-muted mb-0">Total Gasto</p>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="stats-card text-center">
+                <div class="stat-icon {% if over_budget_count > 0 %}icon-red{% else %}icon-green{% endif %} mx-auto">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h4>{{ over_budget_count }}</h4>
+                <p class="text-muted mb-0">Acima do Orçamento</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Orçamentos -->
+    <div class="row">
+        {% for budget in active_budgets %}
+        {% set spent_percentage = (budget.spent_amount / budget.amount * 100) if budget.amount > 0 else 0 %}
+        <div class="col-md-6 col-lg-4">
+            <div class="budget-card {% if spent_percentage > 100 %}budget-over{% elif spent_percentage > budget.alert_percentage %}budget-warning{% endif %}">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="mb-1">
+                            <i class="{{ budget.icon or 'fas fa-tag' }} me-2"></i>
+                            {{ budget.category_name }}
+                        </h5>
+                        <small class="opacity-75">{{ budget.period_type|title }}</small>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-sm text-white" data-bs-toggle="dropdown">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="editBudget({{ budget.id }}, {{ budget.amount }}, {{ budget.alert_percentage }})">
+                                <i class="fas fa-edit me-2"></i>Editar
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="POST" action="{{ url_for('delete_budget', budget_id=budget.id) }}" class="d-inline">
+                                    <button type="submit" class="dropdown-item text-danger" onclick="return confirm('Tem certeza?')">
+                                        <i class="fas fa-trash me-2"></i>Excluir
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between">
+                        <span>Gasto:</span>
+                        <span>R$ {{ "%.2f"|format(budget.spent_amount) }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Orçamento:</span>
+                        <span>R$ {{ "%.2f"|format(budget.amount) }}</span>
+                    </div>
+                </div>
+
+                <div class="budget-progress">
+                    <div class="budget-progress-bar" style="width: {{ min(spent_percentage, 100) }}%; 
+                         background-color: {% if spent_percentage > 100 %}#ff4757{% elif spent_percentage > budget.alert_percentage %}#ffa502{% else %}#2ed573{% endif %};">
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-sm">{{ "%.1f"|format(spent_percentage) }}% usado</span>
+                    <span class="text-sm">
+                        {% if spent_percentage > 100 %}
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            Acima do limite
+                        {% elif spent_percentage > budget.alert_percentage %}
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                            Atenção
+                        {% else %}
+                            <i class="fas fa-check-circle me-1"></i>
+                            No orçamento
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="mt-2">
+                    <small class="opacity-75">
+                        Período: {{ budget.start_date|strftime('%d/%m') }} - {{ budget.end_date|strftime('%d/%m') }}
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if not active_budgets %}
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i class="fas fa-wallet fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">Nenhum orçamento criado</h4>
+                <p class="text-muted">Comece criando seu primeiro orçamento para controlar seus gastos</p>
+                <button class="btn btn-create" data-bs-toggle="modal" data-bs-target="#createBudgetModal">
+                    <i class="fas fa-plus me-2"></i>Criar Primeiro Orçamento
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Criar Orçamento -->
+<div class="modal fade" id="createBudgetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Novo Orçamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('create_budget') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="category_id" class="form-label">Categoria</label>
+                        <select class="form-select" id="category_id" name="category_id" required>
+                            <option value="">Selecione uma categoria</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">
+                                {{ category.icon or '📁' }} {{ category.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Valor do Orçamento</label>
+                        <input type="number" class="form-control" id="amount" name="amount" 
+                               step="0.01" min="0" required>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="start_date" class="form-label">Data Início</label>
+                            <input type="date" class="form-control" id="start_date" name="start_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_date" class="form-label">Data Fim</label>
+                            <input type="date" class="form-control" id="end_date" name="end_date" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 mt-3">
+                        <label for="alert_percentage" class="form-label">Alerta em (% do orçamento)</label>
+                        <input type="number" class="form-control" id="alert_percentage" name="alert_percentage" 
+                               value="80" min="1" max="100">
+                        <div class="form-text">Você será alertado quando atingir esta porcentagem</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-create">Criar Orçamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Orçamento -->
+<div class="modal fade" id="editBudgetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Orçamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="editBudgetForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_amount" class="form-label">Valor do Orçamento</label>
+                        <input type="number" class="form-control" id="edit_amount" name="amount" 
+                               step="0.01" min="0" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit_alert_percentage" class="form-label">Alerta em (% do orçamento)</label>
+                        <input type="number" class="form-control" id="edit_alert_percentage" name="alert_percentage" 
+                               min="1" max="100" required>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="edit_is_active" name="is_active" checked>
+                        <label class="form-check-label" for="edit_is_active">
+                            Orçamento ativo
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-create">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Definir datas padrão (mês atual)
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    
+    const startDate = document.getElementById('start_date');
+    const endDate = document.getElementById('end_date');
+    
+    if (startDate && endDate) {
+        startDate.value = firstDay.toISOString().split('T')[0];
+        endDate.value = lastDay.toISOString().split('T')[0];
+    }
+});
+
+// Função para editar orçamento
+function editBudget(budgetId, amount, alertPercentage) {
+    document.getElementById('edit_amount').value = amount;
+    document.getElementById('edit_alert_percentage').value = alertPercentage;
+    document.getElementById('editBudgetForm').action = `/budgets/edit/${budgetId}`;
+    
+    const editModal = new bootstrap.Modal(document.getElementById('editBudgetModal'));
+    editModal.show();
+}
+
+// Validação de formulário
+document.getElementById('end_date').addEventListener('change', function() {
+    const startDate = document.getElementById('start_date').value;
+    const endDate = this.value;
+    
+    if (startDate && endDate && endDate <= startDate) {
+        alert('A data final deve ser posterior à data inicial');
+        this.value = '';
+    }
+});
+
+// Auto-focus no modal
+document.getElementById('createBudgetModal').addEventListener('shown.bs.modal', function() {
+    document.getElementById('category_id').focus();
+});
+</script>
+{% endblock %}

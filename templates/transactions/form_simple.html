@@ -1,0 +1,336 @@
+{% extends "base_simple.html" %}
+
+{% block title %}{{ title }} - FinanPro{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <i class="fas fa-{% if transaction %}edit{% else %}plus{% endif %} me-2"></i>
+                    {{ title }}
+                </h1>
+                <div class="page-actions">
+                    <a href="{{ url_for('transactions') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Voltar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulário -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST" action="" id="transactionForm">
+                        <div class="row g-3">
+                            <!-- Descrição -->
+                            <div class="col-md-8">
+                                <label for="description" class="form-label">Descrição *</label>
+                                <input type="text" class="form-control" id="description" name="description" 
+                                       value="{{ transaction.description if transaction else '' }}" 
+                                       placeholder="Ex: Salário, Aluguel, Compras..." required>
+                            </div>
+
+                            <!-- Data -->
+                            <div class="col-md-4">
+                                <label for="date" class="form-label">Data *</label>
+                                <input type="date" class="form-control" id="date" name="date" 
+                                       value="{{ transaction.date if transaction else '' }}" required>
+                            </div>
+
+                            <!-- Tipo de Transação -->
+                            <div class="col-md-4">
+                                <label for="transaction_type" class="form-label">Tipo *</label>
+                                <select class="form-select" id="transaction_type" name="transaction_type" required>
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="receita" {% if transaction and transaction.transaction_type == 'receita' %}selected{% endif %}>
+                                        💰 Receita
+                                    </option>
+                                    <option value="despesa" {% if transaction and transaction.transaction_type == 'despesa' %}selected{% endif %}>
+                                        💸 Despesa
+                                    </option>
+                                    <option value="transferencia" {% if transaction and transaction.transaction_type == 'transferencia' %}selected{% endif %}>
+                                        🔄 Transferência
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Valor -->
+                            <div class="col-md-4">
+                                <label for="amount" class="form-label">Valor *</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">R$</span>
+                                    <input type="number" class="form-control" id="amount" name="amount" 
+                                           step="0.01" min="0" 
+                                           value="{{ "%.2f"|format(transaction.amount) if transaction else '' }}" 
+                                           placeholder="0,00" required>
+                                </div>
+                            </div>
+
+                            <!-- Status -->
+                            <div class="col-md-4">
+                                <label class="form-label">Status</label>
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="is_confirmed" name="is_confirmed"
+                                           {% if not transaction or transaction.is_confirmed %}checked{% endif %}>
+                                    <label class="form-check-label" for="is_confirmed">
+                                        Transação confirmada
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Conta de Origem -->
+                            <div class="col-md-6">
+                                <label for="account_id" class="form-label">Conta *</label>
+                                <select class="form-select" id="account_id" name="account_id" required>
+                                    <option value="">Selecione a conta</option>
+                                    {% for account in user_accounts %}
+                                    <option value="{{ account.id }}" 
+                                            data-type="{{ account.account_type }}"
+                                            {% if transaction and transaction.account_id == account.id %}selected{% endif %}>
+                                        {{ account.name }}
+                                        ({{ account.account_type|title }})
+                                        - R$ {{ "%.2f"|format(account.current_balance or 0) }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Conta de Destino (para transferências) -->
+                            <div class="col-md-6" id="transfer_account_group" style="display: none;">
+                                <label for="transfer_account_id" class="form-label">Conta de Destino</label>
+                                <select class="form-select" id="transfer_account_id" name="transfer_account_id">
+                                    <option value="">Selecione a conta de destino</option>
+                                    {% for account in user_accounts %}
+                                    <option value="{{ account.id }}" 
+                                            {% if transaction and transaction.transfer_account_id == account.id %}selected{% endif %}>
+                                        {{ account.name }}
+                                        ({{ account.account_type|title }})
+                                        - R$ {{ "%.2f"|format(account.current_balance or 0) }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Categoria -->
+                            <div class="col-md-6" id="category_group">
+                                <label for="chart_account_id" class="form-label">Categoria</label>
+                                <select class="form-select" id="chart_account_id" name="chart_account_id">
+                                    <option value="">Selecione a categoria</option>
+                                    {% set current_type = '' %}
+                                    {% for category in categories %}
+                                        {% if category.account_type != current_type %}
+                                            {% if current_type != '' %}</optgroup>{% endif %}
+                                            <optgroup label="{{ category.account_type|title }}">
+                                            {% set current_type = category.account_type %}
+                                        {% endif %}
+                                        <option value="{{ category.id }}" 
+                                                data-type="{{ category.account_type }}"
+                                                {% if transaction and transaction.chart_account_id == category.id %}selected{% endif %}>
+                                            {{ category.code }} - {{ category.name }}
+                                        </option>
+                                    {% endfor %}
+                                    {% if current_type != '' %}</optgroup>{% endif %}
+                                </select>
+                            </div>
+
+                            <!-- Referência -->
+                            <div class="col-md-6">
+                                <label for="reference" class="form-label">Referência</label>
+                                <input type="text" class="form-control" id="reference" name="reference" 
+                                       value="{{ transaction.reference if transaction else '' }}" 
+                                       placeholder="Nº documento, cheque, etc.">
+                            </div>
+
+                            <!-- Tags -->
+                            <div class="col-md-6">
+                                <label for="tags" class="form-label">Tags</label>
+                                <input type="text" class="form-control" id="tags" name="tags" 
+                                       value="{{ transaction.tags if transaction else '' }}" 
+                                       placeholder="Ex: trabalho, casa, viagem (separadas por vírgula)">
+                            </div>
+
+                            <!-- Observações -->
+                            <div class="col-12">
+                                <label for="notes" class="form-label">Observações</label>
+                                <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                          placeholder="Observações adicionais sobre a transação...">{{ transaction.notes if transaction else '' }}</textarea>
+                            </div>
+
+                            <!-- Recorrência (só para nova transação) -->
+                            {% if not transaction %}
+                            <div class="col-12">
+                                <div class="card border-info">
+                                    <div class="card-header bg-info bg-opacity-10">
+                                        <h6 class="card-title mb-0">
+                                            <i class="fas fa-repeat me-2"></i>Recorrência
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label for="recurrence_type" class="form-label">Tipo de Recorrência</label>
+                                                <select class="form-select" id="recurrence_type" name="recurrence_type">
+                                                    <option value="unica">Transação única</option>
+                                                    <option value="diaria">Diária</option>
+                                                    <option value="semanal">Semanal</option>
+                                                    <option value="quinzenal">Quinzenal</option>
+                                                    <option value="mensal">Mensal</option>
+                                                    <option value="bimestral">Bimestral</option>
+                                                    <option value="trimestral">Trimestral</option>
+                                                    <option value="semestral">Semestral</option>
+                                                    <option value="anual">Anual</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6" id="recurrence_end_group" style="display: none;">
+                                                <label for="recurrence_end_date" class="form-label">Data Final da Recorrência</label>
+                                                <input type="date" class="form-control" id="recurrence_end_date" name="recurrence_end_date">
+                                                <small class="form-text text-muted">Até quando repetir esta transação</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Botões -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between">
+                                    <a href="{{ url_for('transactions') }}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-times me-2"></i>Cancelar
+                                    </a>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-2"></i>
+                                        {% if transaction %}Atualizar{% else %}Salvar{% endif %} Transação
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const transactionType = document.getElementById('transaction_type');
+    const categoryGroup = document.getElementById('category_group');
+    const transferGroup = document.getElementById('transfer_account_group');
+    const categorySelect = document.getElementById('chart_account_id');
+    const recurrenceType = document.getElementById('recurrence_type');
+    const recurrenceEndGroup = document.getElementById('recurrence_end_group');
+    const dateInput = document.getElementById('date');
+
+    // Definir data padrão como hoje
+    if (!dateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
+    }
+
+    // Controlar visibilidade dos campos baseado no tipo
+    function toggleFields() {
+        const type = transactionType.value;
+        
+        if (type === 'transferencia') {
+            transferGroup.style.display = 'block';
+            categoryGroup.style.display = 'none';
+            categorySelect.required = false;
+        } else {
+            transferGroup.style.display = 'none';
+            categoryGroup.style.display = 'block';
+            categorySelect.required = true;
+            
+            // Filtrar categorias por tipo
+            const options = categorySelect.querySelectorAll('option[data-type]');
+            options.forEach(option => {
+                const optionType = option.getAttribute('data-type');
+                if (type === 'receita' && optionType !== 'receita') {
+                    option.style.display = 'none';
+                } else if (type === 'despesa' && optionType !== 'despesa') {
+                    option.style.display = 'none';
+                } else {
+                    option.style.display = 'block';
+                }
+            });
+        }
+    }
+
+    // Controlar recorrência
+    function toggleRecurrence() {
+        if (recurrenceType && recurrenceType.value !== 'unica') {
+            recurrenceEndGroup.style.display = 'block';
+            document.getElementById('recurrence_end_date').required = true;
+        } else if (recurrenceEndGroup) {
+            recurrenceEndGroup.style.display = 'none';
+            document.getElementById('recurrence_end_date').required = false;
+        }
+    }
+
+    // Event listeners
+    transactionType.addEventListener('change', toggleFields);
+    if (recurrenceType) {
+        recurrenceType.addEventListener('change', toggleRecurrence);
+    }
+
+    // Inicializar
+    toggleFields();
+    if (recurrenceType) {
+        toggleRecurrence();
+    }
+
+    // Validação do formulário
+    document.getElementById('transactionForm').addEventListener('submit', function(e) {
+        const accountId = document.getElementById('account_id').value;
+        const transferAccountId = document.getElementById('transfer_account_id').value;
+        const type = transactionType.value;
+
+        // Validar transferência
+        if (type === 'transferencia') {
+            if (!transferAccountId) {
+                e.preventDefault();
+                alert('Para transferências, é necessário selecionar a conta de destino.');
+                return false;
+            }
+            if (accountId === transferAccountId) {
+                e.preventDefault();
+                alert('A conta de origem e destino devem ser diferentes.');
+                return false;
+            }
+        }
+
+        // Validar categoria para receita/despesa
+        if ((type === 'receita' || type === 'despesa') && !categorySelect.value) {
+            e.preventDefault();
+            alert('Para receitas e despesas, é necessário selecionar uma categoria.');
+            return false;
+        }
+    });
+
+    // Formatação do valor
+    const amountInput = document.getElementById('amount');
+    amountInput.addEventListener('blur', function() {
+        if (this.value) {
+            this.value = parseFloat(this.value).toFixed(2);
+        }
+    });
+
+    // Auto-completar tags
+    const tagsInput = document.getElementById('tags');
+    const commonTags = ['trabalho', 'casa', 'alimentacao', 'transporte', 'saude', 'educacao', 'lazer', 'viagem', 'roupas', 'contas'];
+    
+    // Aqui você poderia implementar um sistema de auto-complete mais sofisticado
+    tagsInput.addEventListener('input', function() {
+        // Placeholder para funcionalidade futura de auto-complete
+    });
+});
+</script>
+{% endblock %}
