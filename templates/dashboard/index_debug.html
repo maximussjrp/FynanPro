@@ -45,7 +45,7 @@
         }
         
         .etapa-badge {
-            background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+            background: linear-gradient(45deg, #667eea, #764ba2);
             padding: 8px 20px;
             border-radius: 25px;
             font-weight: 600;
@@ -82,16 +82,13 @@
     <div class="container">
         <!-- Header Principal -->
         <div class="dashboard-header">
-            <div class="etapa-badge">
-                <i class="fas fa-rocket"></i> ETAPA 4 - SISTEMA COMPLETO
-            </div>
             <h1 class="display-4 fw-bold mb-3">
                 <i class="fas fa-chart-line"></i> FynanPro
             </h1>
-            <p class="lead">Sistema de Gestão Financeira Avançado</p>
+            <p class="lead">Sistema de Gestão Financeira Profissional</p>
             <p class="mb-0">
                 <i class="fas fa-user"></i> 
-                Logado como: <strong>{{ current_user.email if current_user else 'admin@fynanpro.com' }}</strong>
+                Bem-vindo, <strong>{{ current_user.first_name if current_user.first_name else current_user.email.split('@')[0] if current_user else 'Usuário' }}</strong>
             </p>
         </div>
 
@@ -127,16 +124,16 @@
             </div>
         </div>
 
-        <!-- Funcionalidades ETAPA 4 -->
+        <!-- Funcionalidades do Sistema -->
         <div class="row mt-4">
             <div class="col-md-6">
                 <div class="feature-list">
-                    <h3><i class="fas fa-target"></i> Sistema de Orçamentos</h3>
+                    <h3><i class="fas fa-target"></i> Gestão de Orçamentos</h3>
                     <ul class="list-unstyled">
                         <li><i class="fas fa-check text-success"></i> Criação de orçamentos por categoria</li>
                         <li><i class="fas fa-check text-success"></i> Controle de gastos em tempo real</li>
-                        <li><i class="fas fa-check text-success"></i> Alertas de limite</li>
-                        <li><i class="fas fa-check text-success"></i> Relatórios de desempenho</li>
+                        <li><i class="fas fa-check text-success"></i> Alertas inteligentes de limite</li>
+                        <li><i class="fas fa-check text-success"></i> Relatórios detalhados de desempenho</li>
                     </ul>
                     <a href="/budgets" class="btn btn-custom">
                         <i class="fas fa-plus"></i> Gerenciar Orçamentos
@@ -145,12 +142,12 @@
             </div>
             <div class="col-md-6">
                 <div class="feature-list">
-                    <h3><i class="fas fa-bullseye"></i> Sistema de Metas</h3>
+                    <h3><i class="fas fa-bullseye"></i> Planejamento de Metas</h3>
                     <ul class="list-unstyled">
-                        <li><i class="fas fa-check text-success"></i> Definição de metas financeiras</li>
-                        <li><i class="fas fa-check text-success"></i> Acompanhamento de progresso</li>
-                        <li><i class="fas fa-check text-success"></i> Metas de economia</li>
-                        <li><i class="fas fa-check text-success"></i> Dashboard de conquistas</li>
+                        <li><i class="fas fa-check text-success"></i> Definição de objetivos financeiros</li>
+                        <li><i class="fas fa-check text-success"></i> Acompanhamento visual de progresso</li>
+                        <li><i class="fas fa-check text-success"></i> Estratégias de economia</li>
+                        <li><i class="fas fa-check text-success"></i> Painel de conquistas</li>
                     </ul>
                     <a href="/goals" class="btn btn-custom">
                         <i class="fas fa-trophy"></i> Gerenciar Metas
@@ -159,34 +156,74 @@
             </div>
         </div>
 
+        <!-- Transações Recentes -->
+        {% if recent_transactions and recent_transactions|length > 0 %}
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="feature-list">
+                    <h3><i class="fas fa-history"></i> Transações Recentes</h3>
+                    <div class="table-responsive">
+                        <table class="table table-sm text-light">
+                            <thead>
+                                <tr>
+                                    <th><i class="fas fa-calendar"></i> Data</th>
+                                    <th><i class="fas fa-file-alt"></i> Descrição</th>
+                                    <th><i class="fas fa-university"></i> Conta</th>
+                                    <th><i class="fas fa-dollar-sign"></i> Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in recent_transactions[:5] %}
+                                <tr>
+                                    <td>{{ transaction.date|strftime('%d/%m') if transaction.date else '-' }}</td>
+                                    <td>{{ transaction.description[:30] + '...' if transaction.description|length > 30 else transaction.description }}</td>
+                                    <td>{{ transaction.account_name[:15] if transaction.account_name else 'N/A' }}</td>
+                                    <td class="{% if transaction.type == 'receita' %}text-success{% else %}text-danger{% endif %}">
+                                        R$ {{ "%.2f"|format(transaction.amount) }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="/transactions" class="btn btn-custom btn-sm">
+                            <i class="fas fa-list"></i> Ver Todas as Transações
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Menu de Navegação -->
         <div class="row mt-4">
             <div class="col-12">
                 <div class="feature-list text-center">
-                    <h3><i class="fas fa-compass"></i> Navegação Principal</h3>
+                    <h3><i class="fas fa-compass"></i> Acesso Rápido</h3>
                     <div class="row">
                         <div class="col-md-3 mb-3">
                             <a href="/transactions" class="btn btn-custom w-100">
                                 <i class="fas fa-exchange-alt"></i><br>
-                                Transações
+                                <small>Transações</small>
                             </a>
                         </div>
                         <div class="col-md-3 mb-3">
                             <a href="/accounts" class="btn btn-custom w-100">
-                                <i class="fas fa-bank"></i><br>
-                                Contas
+                                <i class="fas fa-university"></i><br>
+                                <small>Contas</small>
                             </a>
                         </div>
                         <div class="col-md-3 mb-3">
                             <a href="/reports" class="btn btn-custom w-100">
                                 <i class="fas fa-chart-bar"></i><br>
-                                Relatórios
+                                <small>Relatórios</small>
                             </a>
                         </div>
                         <div class="col-md-3 mb-3">
                             <a href="/planning" class="btn btn-custom w-100">
-                                <i class="fas fa-calendar-alt"></i><br>
-                                Planejamento
+                                <i class="fas fa-calendar-check"></i><br>
+                                <small>Planejamento</small>
                             </a>
                         </div>
                     </div>
@@ -198,28 +235,15 @@
         <div class="row mt-4">
             <div class="col-12">
                 <div class="feature-list text-center">
-                    <h5><i class="fas fa-info-circle"></i> Status do Sistema</h5>
                     {% if error_message %}
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle"></i> {{ error_message }}
                     </div>
                     {% endif %}
-                    <p class="mb-2">
-                        <i class="fas fa-server"></i> Sistema rodando em produção (Render.com)
-                    </p>
-                    <p class="mb-2">
-                        <i class="fas fa-database"></i> Banco de dados inicializado e funcional
-                    </p>
-                    <p class="mb-0">
-                        <i class="fas fa-shield-alt"></i> Autenticação ativa e segura
-                    </p>
                     
                     <div class="mt-3">
-                        <a href="/diagnostic" class="btn btn-outline-light btn-sm me-2" target="_blank">
-                            <i class="fas fa-stethoscope"></i> Diagnóstico
-                        </a>
                         <a href="/logout" class="btn btn-outline-light btn-sm">
-                            <i class="fas fa-sign-out-alt"></i> Sair
+                            <i class="fas fa-sign-out-alt"></i> Sair do Sistema
                         </a>
                     </div>
                 </div>
@@ -229,9 +253,9 @@
         <!-- Footer -->
         <div class="text-center mt-4 mb-4">
             <p class="text-light">
-                <i class="fas fa-rocket"></i> FynanPro ETAPA 4 - Sistema de Gestão Financeira Completo
+                <i class="fas fa-shield-alt"></i> FynanPro - Sistema de Gestão Financeira
                 <br>
-                <small>Desenvolvido com Flask, Bootstrap 5 e muito ❤️</small>
+                <small>Controle total das suas finanças pessoais</small>
             </p>
         </div>
     </div>
