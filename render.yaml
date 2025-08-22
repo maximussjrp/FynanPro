@@ -3,10 +3,12 @@ services:
     name: fynanpro
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app --timeout 120 --workers 2 --max-requests 1000 --max-requests-jitter 100
+    startCommand: python app.py
     plan: starter
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: SECRET_KEY
         generateValue: true
+      - key: PORT
+        generateValue: false
