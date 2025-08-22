@@ -609,6 +609,115 @@ def logout():
     flash('Você foi desconectado.', 'info')
     return redirect(url_for('login'))
 
+# Função para cálculos da tabela financeira do dashboard
+def calculate_financial_table_data(user_id, period='today'):
+    """
+    🧮 Calcula dados para tabela financeira do dashboard
+    Períodos: today, week, month, year
+    """
+    from datetime import datetime, date, timedelta
+    
+    conn = get_db()
+    type_column = get_transaction_type_column(conn)
+    
+    # Definir período
+    today = date.today()
+    
+    if period == 'today':
+        start_date = today
+        end_date = today
+        period_label = 'Hoje'
+    elif period == 'week':
+        start_date = today - timedelta(days=today.weekday())  # Segunda-feira
+        end_date = start_date + timedelta(days=6)  # Domingo
+        period_label = 'Esta Semana'
+    elif period == 'month':
+        start_date = today.replace(day=1)
+        # Último dia do mês
+        if today.month == 12:
+            end_date = date(today.year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = date(today.year, today.month + 1, 1) - timedelta(days=1)
+        period_label = 'Este Mês'
+    elif period == 'year':
+        start_date = today.replace(month=1, day=1)
+        end_date = today.replace(month=12, day=31)
+        period_label = 'Este Ano'
+    else:
+        start_date = today
+        end_date = today
+        period_label = 'Hoje'
+    
+    try:
+        # A RECEBER (Receitas) no período
+        period_income = conn.execute(f'''
+            SELECT COALESCE(SUM(amount), 0) FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE a.user_id = ? AND t.{type_column} = 'receita'
+            AND t.date >= ? AND t.date <= ?
+        ''', (user_id, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))).fetchone()[0]
+        
+        # A PAGAR (Despesas) no período
+        period_expenses = conn.execute(f'''
+            SELECT COALESCE(SUM(amount), 0) FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE a.user_id = ? AND t.{type_column} = 'despesa'
+            AND t.date >= ? AND t.date <= ?
+        ''', (user_id, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))).fetchone()[0]
+        
+        # ATRASADOS (Transações com data anterior a hoje)
+        overdue_income = conn.execute(f'''
+            SELECT COALESCE(SUM(amount), 0) FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE a.user_id = ? AND t.{type_column} = 'receita'
+            AND t.date < ?
+        ''', (user_id, today.strftime('%Y-%m-%d'))).fetchone()[0]
+        
+        overdue_expenses = conn.execute(f'''
+            SELECT COALESCE(SUM(amount), 0) FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE a.user_id = ? AND t.{type_column} = 'despesa'
+            AND t.date < ?
+        ''', (user_id, today.strftime('%Y-%m-%d'))).fetchone()[0]
+        
+        # TOTAL (com atrasados)
+        total_income = period_income + overdue_income
+        total_expenses = period_expenses + overdue_expenses
+        
+        # Resultado da tabela
+        financial_table = {
+            'period_label': period_label,
+            'a_receber': {
+                'period': period_income,
+                'overdue': overdue_income,
+                'total': total_income
+            },
+            'a_pagar': {
+                'period': period_expenses,
+                'overdue': overdue_expenses,
+                'total': total_expenses
+            },
+            'total': {
+                'period': period_income - period_expenses,
+                'overdue': overdue_income - overdue_expenses,
+                'total': total_income - total_expenses
+            }
+        }
+        
+        conn.close()
+        return financial_table
+        
+    except Exception as e:
+        app.logger.error(f"🚨 Erro no cálculo da tabela financeira: {e}")
+        conn.close()
+        # Retornar dados zerados em caso de erro
+        return {
+            'period_label': period_label,
+            'a_receber': {'period': 0, 'overdue': 0, 'total': 0},
+            'a_pagar': {'period': 0, 'overdue': 0, 'total': 0},
+            'total': {'period': 0, 'overdue': 0, 'total': 0}
+        }
+
 # Rota Principal - Dashboard
 @app.route('/')
 @app.route('/dashboard')
@@ -616,6 +725,14 @@ def logout():
 def dashboard():
     current_user = get_current_user()
     app.logger.info(f"🎯 Dashboard acessado por: {current_user['email'] if current_user else 'Anônimo'}")
+    
+    # Obter período selecionado (padrão: month)
+    period = request.args.get('period', 'month')
+    app.logger.info(f"📊 Período selecionado: {period}")
+    
+    # Calcular dados da tabela financeira
+    financial_table = calculate_financial_table_data(current_user['id'], period)
+    app.logger.info(f"💰 Tabela financeira: {financial_table['period_label']}")
     
     conn = get_db()
     
@@ -695,7 +812,9 @@ def dashboard():
                              recent_transactions=[dict(tx) for tx in recent_transactions],
                              balance=monthly_income - monthly_expenses,
                              user_accounts=[dict(acc) for acc in user_accounts],
-                             current_user=current_user
+                             current_user=current_user,
+                             financial_table=financial_table,
+                             selected_period=period
                              )
     
     except Exception as e:
@@ -712,7 +831,9 @@ def dashboard():
                              balance=0,
                              user_accounts=[],
                              current_user=current_user,
-                             error_message="Sistema iniciando... Algumas funcionalidades podem estar limitadas."
+                             error_message="Sistema iniciando... Algumas funcionalidades podem estar limitadas.",
+                             financial_table=financial_table,
+                             selected_period=period
                              )
     
     # Transações recentes

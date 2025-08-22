@@ -76,6 +76,57 @@
             box-shadow: 0 10px 20px rgba(0,0,0,0.2);
             color: white;
         }
+        
+        /* Estilos da Tabela Financeira */
+        .table-transparent {
+            background: transparent;
+            color: white;
+        }
+        
+        .table-transparent th,
+        .table-transparent td {
+            border: none;
+            padding: 1rem;
+        }
+        
+        .table-transparent thead th {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .table-transparent tbody tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            transform: scale(1.01);
+            transition: all 0.3s ease;
+        }
+        
+        .table-transparent .fs-4,
+        .table-transparent .fs-5 {
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        /* Botões de período */
+        .btn-check:checked + .btn-outline-light {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-outline-light {
+            border-color: rgba(255, 255, 255, 0.3);
+            color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(5px);
+        }
+        
+        .btn-outline-light:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -92,34 +143,146 @@
             </p>
         </div>
 
-        <!-- Cards de Estatísticas -->
-        <div class="row">
+        <!-- Tabela Financeira Interativa -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="stats-card">
+                    <!-- Seletor de Período -->
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Resumo Financeiro</h5>
+                        <div class="btn-group" role="group">
+                            <input type="radio" class="btn-check" name="period" id="today" value="today" {% if selected_period == 'today' %}checked{% endif %}>
+                            <label class="btn btn-outline-light btn-sm" for="today">Hoje</label>
+                            
+                            <input type="radio" class="btn-check" name="period" id="week" value="week" {% if selected_period == 'week' %}checked{% endif %}>
+                            <label class="btn btn-outline-light btn-sm" for="week">Esta Semana</label>
+                            
+                            <input type="radio" class="btn-check" name="period" id="month" value="month" {% if selected_period == 'month' %}checked{% endif %}>
+                            <label class="btn btn-outline-light btn-sm" for="month">Este Mês</label>
+                            
+                            <input type="radio" class="btn-check" name="period" id="year" value="year" {% if selected_period == 'year' %}checked{% endif %}>
+                            <label class="btn btn-outline-light btn-sm" for="year">Este Ano</label>
+                        </div>
+                    </div>
+
+                    <!-- Tabela Financeira -->
+                    <div class="table-responsive">
+                        <table class="table table-transparent">
+                            <thead>
+                                <tr class="border-bottom border-light">
+                                    <th class="text-white fw-bold"></th>
+                                    <th class="text-white fw-bold text-center">
+                                        <i class="fas fa-calendar-day me-2"></i>{{ financial_table.period_label }}
+                                    </th>
+                                    <th class="text-white fw-bold text-center">
+                                        <i class="fas fa-clock me-2" style="color: #f44336;"></i>Atrasados
+                                    </th>
+                                    <th class="text-white fw-bold text-center">
+                                        <i class="fas fa-calculator me-2"></i>Total<br>
+                                        <small>(com atrasados)</small>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-bottom border-light border-opacity-25">
+                                    <td class="text-white fw-bold">
+                                        <i class="fas fa-arrow-up me-2" style="color: #4CAF50;"></i>A Receber
+                                    </td>
+                                    <td class="text-center text-white">
+                                        <span class="fs-5 fw-bold" style="color: #4CAF50;">
+                                            R$ {{ "%.2f"|format(financial_table.a_receber.period) }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center text-white">
+                                        {% if financial_table.a_receber.overdue > 0 %}
+                                            <span class="fs-6 text-warning">R$ {{ "%.2f"|format(financial_table.a_receber.overdue) }}</span>
+                                        {% else %}
+                                            <span class="text-muted">R$ 0,00</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center text-white">
+                                        <span class="fs-5 fw-bold" style="color: #4CAF50;">
+                                            R$ {{ "%.2f"|format(financial_table.a_receber.total) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr class="border-bottom border-light border-opacity-25">
+                                    <td class="text-white fw-bold">
+                                        <i class="fas fa-arrow-down me-2" style="color: #f44336;"></i>A Pagar
+                                    </td>
+                                    <td class="text-center text-white">
+                                        <span class="fs-5 fw-bold" style="color: #f44336;">
+                                            R$ {{ "%.2f"|format(financial_table.a_pagar.period) }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center text-white">
+                                        {% if financial_table.a_pagar.overdue > 0 %}
+                                            <span class="fs-6 text-danger">R$ {{ "%.2f"|format(financial_table.a_pagar.overdue) }}</span>
+                                        {% else %}
+                                            <span class="text-muted">R$ 0,00</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center text-white">
+                                        <span class="fs-5 fw-bold" style="color: #f44336;">
+                                            R$ {{ "%.2f"|format(financial_table.a_pagar.total) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr class="border-top border-light">
+                                    <td class="text-white fw-bold">
+                                        <i class="fas fa-balance-scale me-2" style="color: #2196F3;"></i><strong>Total</strong>
+                                    </td>
+                                    <td class="text-center text-white">
+                                        <span class="fs-4 fw-bold {% if financial_table.total.period >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            R$ {{ "%.2f"|format(financial_table.total.period) }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center text-white">
+                                        <span class="fs-6 {% if financial_table.total.overdue >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            R$ {{ "%.2f"|format(financial_table.total.overdue) }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center text-white">
+                                        <span class="fs-4 fw-bold {% if financial_table.total.total >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            R$ {{ "%.2f"|format(financial_table.total.total) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cards de Estatísticas Resumidas -->
+        <div class="row mt-3">
             <div class="col-md-3">
-                <div class="stats-card text-center">
-                    <i class="fas fa-arrow-up fa-3x mb-3" style="color: #4CAF50;"></i>
-                    <h3>R$ {{ "%.2f"|format(monthly_income|default(0)) }}</h3>
-                    <p class="mb-0">Receitas do Mês</p>
+                <div class="stats-card text-center py-3">
+                    <i class="fas fa-arrow-up fa-2x mb-2" style="color: #4CAF50;"></i>
+                    <h5>R$ {{ "%.2f"|format(monthly_income|default(0)) }}</h5>
+                    <small class="text-muted">Receitas do Mês</small>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="stats-card text-center">
-                    <i class="fas fa-arrow-down fa-3x mb-3" style="color: #f44336;"></i>
-                    <h3>R$ {{ "%.2f"|format(monthly_expenses|default(0)) }}</h3>
-                    <p class="mb-0">Despesas do Mês</p>
+                <div class="stats-card text-center py-3">
+                    <i class="fas fa-arrow-down fa-2x mb-2" style="color: #f44336;"></i>
+                    <h5>R$ {{ "%.2f"|format(monthly_expenses|default(0)) }}</h5>
+                    <small class="text-muted">Despesas do Mês</small>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="stats-card text-center">
-                    <i class="fas fa-balance-scale fa-3x mb-3" style="color: #2196F3;"></i>
-                    <h3>R$ {{ "%.2f"|format(balance|default(0)) }}</h3>
-                    <p class="mb-0">Saldo do Mês</p>
+                <div class="stats-card text-center py-3">
+                    <i class="fas fa-balance-scale fa-2x mb-2" style="color: #2196F3;"></i>
+                    <h5>R$ {{ "%.2f"|format(balance|default(0)) }}</h5>
+                    <small class="text-muted">Saldo do Mês</small>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="stats-card text-center">
-                    <i class="fas fa-wallet fa-3x mb-3" style="color: #FF9800;"></i>
-                    <h3>{{ user_accounts|length if user_accounts else 0 }}</h3>
-                    <p class="mb-0">Contas Ativas</p>
+                <div class="stats-card text-center py-3">
+                    <i class="fas fa-wallet fa-2x mb-2" style="color: #FF9800;"></i>
+                    <h5>{{ user_accounts|length if user_accounts else 0 }}</h5>
+                    <small class="text-muted">Contas Ativas</small>
                 </div>
             </div>
         </div>
@@ -264,8 +427,29 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
-        // Animações suaves
+        // Interatividade da Tabela Financeira + Animações
         document.addEventListener('DOMContentLoaded', function() {
+            // Seletor de período
+            const periodRadios = document.querySelectorAll('input[name="period"]');
+            
+            periodRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.checked) {
+                        // Mostrar loading
+                        const table = document.querySelector('.table-responsive');
+                        if (table) {
+                            table.style.opacity = '0.5';
+                            table.style.transition = 'opacity 0.3s ease';
+                        }
+                        
+                        // Redirecionar com o período selecionado
+                        const currentUrl = new URL(window.location);
+                        currentUrl.searchParams.set('period', this.value);
+                        window.location.href = currentUrl.toString();
+                    }
+                });
+            });
+
             // Fade in das cards
             const cards = document.querySelectorAll('.stats-card, .feature-list');
             cards.forEach((card, index) => {
@@ -277,6 +461,20 @@
                     card.style.transform = 'translateY(0)';
                 }, index * 100);
             });
+
+            // Animação na tabela financeira
+            setTimeout(() => {
+                const tableRows = document.querySelectorAll('.table tbody tr');
+                tableRows.forEach((row, index) => {
+                    row.style.opacity = '0';
+                    row.style.transform = 'translateX(-20px)';
+                    setTimeout(() => {
+                        row.style.transition = 'all 0.4s ease';
+                        row.style.opacity = '1';
+                        row.style.transform = 'translateX(0)';
+                    }, index * 150);
+                });
+            }, 500);
         });
     </script>
 </body>
