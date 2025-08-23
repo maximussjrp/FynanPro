@@ -1060,14 +1060,31 @@ def dashboard():
         
         # Transações recentes (com tratamento de erro)
         try:
-            recent_transactions_result = conn.execute('''
-                SELECT t.*, a.name as account_name, t.category as category_name
-                FROM transactions t
-                JOIN accounts a ON t.account_id = a.id
-                WHERE a.user_id = ?
-                ORDER BY t.date DESC
-                LIMIT 10
-            ''', (current_user['id'],)).fetchall()
+            # Verificar estrutura da tabela transactions dinamicamente
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(transactions)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            # Construir query baseado nas colunas disponíveis
+            if 'category' in columns:
+                recent_transactions_result = conn.execute('''
+                    SELECT t.*, a.name as account_name, t.category as category_name
+                    FROM transactions t
+                    JOIN accounts a ON t.account_id = a.id
+                    WHERE a.user_id = ?
+                    ORDER BY t.date DESC
+                    LIMIT 10
+                ''', (current_user['id'],)).fetchall()
+            else:
+                recent_transactions_result = conn.execute('''
+                    SELECT t.*, a.name as account_name, 'Outros' as category_name
+                    FROM transactions t
+                    JOIN accounts a ON t.account_id = a.id
+                    WHERE a.user_id = ?
+                    ORDER BY t.date DESC
+                    LIMIT 10
+                ''', (current_user['id'],)).fetchall()
+                
             recent_transactions = recent_transactions_result if recent_transactions_result else []
             app.logger.info(f"📋 Transações recentes: {len(recent_transactions)}")
             
@@ -1091,17 +1108,39 @@ def dashboard():
         
         # Categorias disponíveis (para o formulário da aba lateral)
         try:
-            categories_result = conn.execute('''
-                SELECT id, name, category_type, color, icon FROM categories 
-                WHERE is_active = 1
-                ORDER BY category_type, name
-            ''').fetchall()
-            categories = categories_result if categories_result else []
-            app.logger.info(f"🏷️ Categorias disponíveis: {len(categories)}")
+            # Verificar se a tabela categories existe
+            tables_result = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='categories'").fetchone()
+            
+            if tables_result:
+                categories_result = conn.execute('''
+                    SELECT id, name, category_type, color, icon FROM categories 
+                    WHERE is_active = 1
+                    ORDER BY category_type, name
+                ''').fetchall()
+                categories = categories_result if categories_result else []
+                app.logger.info(f"🏷️ Categorias disponíveis: {len(categories)}")
+            else:
+                # Tabela categories não existe - criar categorias padrão
+                app.logger.warning("⚠️ Tabela categories não encontrada - usando categorias padrão")
+                categories = [
+                    {'id': 1, 'name': 'Alimentação', 'category_type': 'despesa', 'color': '#ff6b6b', 'icon': '🍽️'},
+                    {'id': 2, 'name': 'Transporte', 'category_type': 'despesa', 'color': '#4ecdc4', 'icon': '🚗'},
+                    {'id': 3, 'name': 'Moradia', 'category_type': 'despesa', 'color': '#45b7d1', 'icon': '🏠'},
+                    {'id': 4, 'name': 'Entretenimento', 'category_type': 'despesa', 'color': '#feca57', 'icon': '🎮'},
+                    {'id': 5, 'name': 'Salário', 'category_type': 'receita', 'color': '#26de81', 'icon': '💰'},
+                    {'id': 6, 'name': 'Freelance', 'category_type': 'receita', 'color': '#a55eea', 'icon': '💼'},
+                    {'id': 7, 'name': 'Investimentos', 'category_type': 'receita', 'color': '#fd79a8', 'icon': '📈'},
+                    {'id': 8, 'name': 'Outros', 'category_type': 'geral', 'color': '#636e72', 'icon': '📱'},
+                ]
             
         except sqlite3.OperationalError as e:
             app.logger.warning(f"⚠️ Erro em consulta categories: {e}")
-            categories = []
+            # Fallback para categorias básicas
+            categories = [
+                {'id': 1, 'name': 'Alimentação', 'category_type': 'despesa', 'color': '#ff6b6b', 'icon': '🍽️'},
+                {'id': 2, 'name': 'Salário', 'category_type': 'receita', 'color': '#26de81', 'icon': '💰'},
+                {'id': 3, 'name': 'Outros', 'category_type': 'geral', 'color': '#636e72', 'icon': '📱'},
+            ]
         
         conn.close()
         app.logger.info("✅ Dashboard carregado com sucesso")
@@ -1282,95 +1321,129 @@ def new_transaction():
     current_user = get_current_user()
     
     if request.method == 'POST':
-        # Verificar se é JSON (da aba lateral) ou form normal
-        if request.is_json:
-            data = request.get_json()
-            description = data['description']
-            amount = float(data['amount'])
-            date_str = data['date']
-            transaction_type = data['type']
-            account_id = int(data['account_id'])
-            chart_account_id = data.get('category_id', '')
-            notes = data.get('notes', '')
-        else:
-            # Form normal
-            description = request.form['description']
-            amount = float(request.form['amount'])
-            date_str = request.form['date']
-            transaction_type = request.form['transaction_type']
-            account_id = int(request.form['account_id'])
-            chart_account_id = request.form.get('category', '')
-            notes = request.form.get('notes', '')
-        
-        # Campos adicionais para form normal
-        transfer_account_id = None
-        reference = ''
-        tags = ''
-        recurrence_type = 'unica'
-        recurrence_end_date = None
-        is_confirmed = True
-        
-        if not request.is_json:
-            transfer_account_id = int(request.form['transfer_account_id']) if request.form.get('transfer_account_id') and request.form['transfer_account_id'] != '0' else None
-            reference = request.form.get('reference', '')
-            tags = request.form.get('tags', '')
-            recurrence_type = request.form.get('recurrence_type', 'unica')
-            recurrence_end_date = request.form.get('recurrence_end_date') if request.form.get('recurrence_end_date') else None
-            is_confirmed = 'is_confirmed' in request.form
-        
-        conn = get_db()
-        
-        # Validações
-        if not chart_account_id and transaction_type != 'transferencia':
-            error_msg = 'Categoria é obrigatória para receitas e despesas.'
-            if request.is_json:
-                return jsonify({'success': False, 'message': error_msg})
-            else:
-                flash(error_msg, 'danger')
-                return redirect(url_for('new_transaction'))
-        
         try:
-            # Inserir transação principal - SQL CORRIGIDO para a estrutura real da tabela
-            transaction_id = conn.execute('''
-                INSERT INTO transactions (user_id, description, amount, date, type, category, account_id, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (current_user['id'], description, amount, date_str, transaction_type, 
-                  chart_account_id or None, account_id, notes)).lastrowid
-            
-            app.logger.info(f"✅ Transação criada: ID {transaction_id}")
-            
-            # Para transferências, criar transação contrária
-            if transaction_type == 'transferencia' and transfer_account_id:
-                conn.execute('''
-                    INSERT INTO transactions (user_id, description, amount, date, type, account_id, notes, transfer_to_account_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (current_user['id'], f'Transferência: {description}', -amount, date_str, 'transferencia',
-                      transfer_account_id, notes, account_id))
-                
-                app.logger.info(f"✅ Transferência contrária criada")
-            
-            # Atualizar saldos das contas - CRÍTICO
-            update_account_balance(conn, account_id)
-            if transfer_account_id:
-                update_account_balance(conn, transfer_account_id)
-            
-            conn.commit()
-            app.logger.info(f"✅ Saldos atualizados")
-            
-            # Processar recorrência se necessário (funcionalidade futura)
-            # if recurrence_type != 'unica' and recurrence_end_date:
-            #     create_recurring_transactions(transaction_id, recurrence_type, recurrence_end_date)
-            
-            success_msg = 'Transação criada com sucesso!'
+            # Verificar se é JSON (da aba lateral) ou form normal
             if request.is_json:
-                return jsonify({'success': True, 'message': success_msg, 'transaction_id': transaction_id})
+                data = request.get_json()
+                description = data['description']
+                amount = float(data['amount'])
+                date_str = data['date']
+                transaction_type = data['type']
+                account_id = int(data['account_id'])
+                chart_account_id = data.get('category_id', '')
+                notes = data.get('notes', '')
             else:
-                flash(success_msg, 'success')
-                return redirect(url_for('transactions'))
+                # Form normal
+                description = request.form['description']
+                amount = float(request.form['amount'])
+                date_str = request.form['date']
+                transaction_type = request.form['transaction_type']
+                account_id = int(request.form['account_id'])
+                chart_account_id = request.form.get('category', '')
+                notes = request.form.get('notes', '')
             
+            # Campos adicionais para form normal
+            transfer_account_id = None
+            if not request.is_json:
+                transfer_account_id = int(request.form['transfer_account_id']) if request.form.get('transfer_account_id') and request.form['transfer_account_id'] != '0' else None
+            
+            conn = get_db()
+            
+            # Validações
+            if not chart_account_id and transaction_type != 'transferencia':
+                error_msg = 'Categoria é obrigatória para receitas e despesas.'
+                if request.is_json:
+                    return jsonify({'success': False, 'message': error_msg})
+                else:
+                    flash(error_msg, 'danger')
+                    return redirect(url_for('new_transaction'))
+            
+            # Verificar se a conta existe
+            account_check = conn.execute('SELECT id FROM accounts WHERE id = ? AND user_id = ?', 
+                                       (account_id, current_user['id'])).fetchone()
+            if not account_check:
+                error_msg = 'Conta selecionada não encontrada.'
+                if request.is_json:
+                    return jsonify({'success': False, 'message': error_msg})
+                else:
+                    flash(error_msg, 'danger')
+                    return redirect(url_for('new_transaction'))
+            
+            # Inserir transação principal - ROBUSTA
+            try:
+                # Detectar estrutura da tabela dinamicamente
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(transactions)")
+                columns = [row[1] for row in cursor.fetchall()]
+                
+                # Preparar dados baseado na estrutura real da tabela
+                if 'user_id' in columns:
+                    transaction_id = conn.execute('''
+                        INSERT INTO transactions (user_id, description, amount, date, type, category, account_id, notes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (current_user['id'], description, amount, date_str, transaction_type, 
+                          chart_account_id or None, account_id, notes)).lastrowid
+                else:
+                    # Fallback para estrutura sem user_id
+                    transaction_id = conn.execute('''
+                        INSERT INTO transactions (description, amount, date, type, category, account_id, notes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (description, amount, date_str, transaction_type, 
+                          chart_account_id or None, account_id, notes)).lastrowid
+                
+                app.logger.info(f"✅ Transação criada: ID {transaction_id}")
+                
+                # Para transferências, criar transação contrária
+                if transaction_type == 'transferencia' and transfer_account_id:
+                    if 'user_id' in columns:
+                        conn.execute('''
+                            INSERT INTO transactions (user_id, description, amount, date, type, account_id, notes, transfer_to_account_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (current_user['id'], f'Transferência: {description}', -amount, date_str, 'transferencia',
+                              transfer_account_id, notes, account_id))
+                    else:
+                        conn.execute('''
+                            INSERT INTO transactions (description, amount, date, type, account_id, notes, transfer_to_account_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ''', (f'Transferência: {description}', -amount, date_str, 'transferencia',
+                              transfer_account_id, notes, account_id))
+                    
+                    app.logger.info(f"✅ Transferência contrária criada")
+                
+                # Atualizar saldos das contas - CRÍTICO
+                try:
+                    update_account_balance(conn, account_id)
+                    if transfer_account_id:
+                        update_account_balance(conn, transfer_account_id)
+                    app.logger.info(f"✅ Saldos atualizados")
+                except Exception as balance_error:
+                    app.logger.warning(f"⚠️ Erro ao atualizar saldos: {balance_error}")
+                
+                conn.commit()
+                
+                success_msg = 'Transação criada com sucesso!'
+                if request.is_json:
+                    return jsonify({'success': True, 'message': success_msg, 'transaction_id': transaction_id})
+                else:
+                    flash(success_msg, 'success')
+                    return redirect(url_for('transactions'))
+                
+            except Exception as insert_error:
+                conn.rollback()
+                error_msg = f'Erro ao inserir transação: {str(insert_error)}'
+                app.logger.error(f"🚨 {error_msg}")
+                
+                if request.is_json:
+                    return jsonify({'success': False, 'message': error_msg})
+                else:
+                    flash(error_msg, 'danger')
+                    return redirect(url_for('new_transaction'))
+            
+            finally:
+                conn.close()
+                
         except Exception as e:
-            conn.rollback()
-            error_msg = f'Erro ao criar transação: {str(e)}'
+            error_msg = f'Erro geral ao processar transação: {str(e)}'
             app.logger.error(f"🚨 {error_msg}")
             
             if request.is_json:
@@ -1378,9 +1451,6 @@ def new_transaction():
             else:
                 flash(error_msg, 'danger')
                 return redirect(url_for('new_transaction'))
-        
-        finally:
-            conn.close()
     
     # GET - Mostrar formulário
     conn = get_db()
