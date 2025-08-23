@@ -36,7 +36,7 @@ if os.environ.get('PORT'):  # Detectar se está no Render
     app.logger.setLevel(logging.INFO)
     app.logger.info("🚀 FYNANPRO ETAPA 4 - Logging configurado para produção")
     
-    # INICIALIZAÇÃO AUTOMÁTICA NO RENDER (com delay para evitar problemas)
+    # INICIALIZAÇÃO AUTOMÁTICA NO RENDER (definir função, executar depois)
     def init_render():
         try:
             init_db()
@@ -45,10 +45,6 @@ if os.environ.get('PORT'):  # Detectar se está no Render
             app.logger.info("✅ Sistema inicializado automaticamente no Render")
         except Exception as e:
             app.logger.error(f"🚨 Erro na inicialização automática: {e}")
-    
-    # Executar inicialização
-    import threading
-    threading.Thread(target=init_render, daemon=True).start()
         
 else:
     app.logger.info("🏠 FYNANPRO ETAPA 4 - Modo desenvolvimento")
@@ -341,6 +337,12 @@ def apply_database_migrations(conn):
         app.logger.error(f"🚨 Erro nas migrações: {e}")
         conn.rollback()
 
+# Função auxiliar para conectar ao banco
+def get_db():
+    conn = sqlite3.connect(app.config['DATABASE'])
+    conn.row_factory = sqlite3.Row
+    return conn
+
 def create_default_data():
     """Criar dados padrão: categorias, contas básicas"""
     try:
@@ -468,11 +470,6 @@ def date_format_filter(value, format='%d/%m/%Y'):
     return value.strftime(format) if hasattr(value, 'strftime') else str(value)
 
 # Funções auxiliares
-def get_db():
-    conn = sqlite3.connect(app.config['DATABASE'])
-    conn.row_factory = sqlite3.Row
-    return conn
-
 def get_transaction_type_column(conn):
     """Detectar automaticamente se usa 'type' ou 'transaction_type'"""
     try:
@@ -2831,5 +2828,10 @@ if __name__ == '__main__':
         init_db()
         create_default_data()
         ensure_admin_user()  # Garantir admin sempre disponível
+    
+    # Executar inicialização específica do Render se estiver em produção
+    if os.environ.get('PORT'):
+        import threading
+        threading.Thread(target=init_render, daemon=True).start()
     
     app.run(debug=True, host='127.0.0.1', port=5000)
