@@ -1330,27 +1330,22 @@ def new_transaction():
                 return redirect(url_for('new_transaction'))
         
         try:
-            # Inserir transação principal - SQL CORRIGIDO
+            # Inserir transação principal - SQL CORRIGIDO para a estrutura real da tabela
             transaction_id = conn.execute('''
-                INSERT INTO transactions (description, amount, date, type,
-                                        category, account_id, notes, reference, tags,
-                                        recurrence_type, is_confirmed, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (description, amount, date_str, transaction_type, 
-                  chart_account_id or None, account_id, notes, reference, tags,
-                  recurrence_type, 1 if is_confirmed else 0, datetime.now())).lastrowid
+                INSERT INTO transactions (user_id, description, amount, date, type, category, account_id, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (current_user['id'], description, amount, date_str, transaction_type, 
+                  chart_account_id or None, account_id, notes)).lastrowid
             
             app.logger.info(f"✅ Transação criada: ID {transaction_id}")
             
             # Para transferências, criar transação contrária
             if transaction_type == 'transferencia' and transfer_account_id:
                 conn.execute('''
-                    INSERT INTO transactions (description, amount, date, type,
-                                            account_id, notes, reference, 
-                                            transfer_account_id, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (f'Transferência: {description}', -amount, date_str, 'transferencia',
-                      transfer_account_id, notes, reference, account_id, datetime.now()))
+                    INSERT INTO transactions (user_id, description, amount, date, type, account_id, notes, transfer_to_account_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (current_user['id'], f'Transferência: {description}', -amount, date_str, 'transferencia',
+                      transfer_account_id, notes, account_id))
                 
                 app.logger.info(f"✅ Transferência contrária criada")
             
@@ -1362,9 +1357,9 @@ def new_transaction():
             conn.commit()
             app.logger.info(f"✅ Saldos atualizados")
             
-            # Processar recorrência se necessário
-            if recurrence_type != 'unica' and recurrence_end_date:
-                create_recurring_transactions(transaction_id, recurrence_type, recurrence_end_date)
+            # Processar recorrência se necessário (funcionalidade futura)
+            # if recurrence_type != 'unica' and recurrence_end_date:
+            #     create_recurring_transactions(transaction_id, recurrence_type, recurrence_end_date)
             
             success_msg = 'Transação criada com sucesso!'
             if request.is_json:
@@ -1522,38 +1517,6 @@ def delete_transaction(id):
     
     flash('Transação excluída com sucesso!', 'success')
     return redirect(url_for('transactions'))
-
-def update_account_balance(conn, account_id):
-    """Atualiza o saldo da conta baseado nas transações"""
-    if not account_id:
-        return
-    
-    # Buscar saldo inicial
-    account = conn.execute('SELECT initial_balance FROM accounts WHERE id = ?', (account_id,)).fetchone()
-    if not account:
-        return
-    
-    initial_balance = account['initial_balance'] or 0
-    
-    # Calcular total das transações - TRATAMENTO ROBUSTO
-    total_transactions_result = conn.execute('''
-        SELECT COALESCE(SUM(
-            CASE 
-                WHEN type = 'receita' THEN amount
-                WHEN type = 'despesa' THEN -amount
-                WHEN type = 'transferencia' THEN amount
-                ELSE 0
-            END
-        ), 0) FROM transactions
-        WHERE account_id = ? AND is_confirmed = 1
-    ''', (account_id,)).fetchone()
-    
-    total_transactions = float(total_transactions_result[0]) if total_transactions_result and total_transactions_result[0] is not None else 0.0
-    
-    new_balance = initial_balance + total_transactions
-    
-    # Atualizar saldo da conta
-    conn.execute('UPDATE accounts SET current_balance = ? WHERE id = ?', (new_balance, account_id))
 
 def create_recurring_transactions(parent_id, recurrence_type, end_date_str):
     """Cria transações recorrentes"""
