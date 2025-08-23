@@ -1089,6 +1089,20 @@ def dashboard():
             app.logger.warning(f"⚠️ Erro em consulta accounts: {e}")
             user_accounts = []
         
+        # Categorias disponíveis (para o formulário da aba lateral)
+        try:
+            categories_result = conn.execute('''
+                SELECT id, name, category_type, color, icon FROM categories 
+                WHERE is_active = 1
+                ORDER BY category_type, name
+            ''').fetchall()
+            categories = categories_result if categories_result else []
+            app.logger.info(f"🏷️ Categorias disponíveis: {len(categories)}")
+            
+        except sqlite3.OperationalError as e:
+            app.logger.warning(f"⚠️ Erro em consulta categories: {e}")
+            categories = []
+        
         conn.close()
         app.logger.info("✅ Dashboard carregado com sucesso")
         
@@ -1098,6 +1112,7 @@ def dashboard():
                              recent_transactions=[dict(tx) for tx in recent_transactions],
                              balance=monthly_income - monthly_expenses,
                              user_accounts=[dict(acc) for acc in user_accounts],
+                             categories=[dict(cat) for cat in categories],
                              current_user=current_user,
                              financial_table=financial_table,
                              selected_period=period
@@ -1267,26 +1282,52 @@ def new_transaction():
     current_user = get_current_user()
     
     if request.method == 'POST':
-        description = request.form['description']
-        amount = float(request.form['amount'])
-        date_str = request.form['date']
-        transaction_type = request.form['transaction_type']
-        account_id = int(request.form['account_id'])
-        chart_account_id = request.form.get('category', '')
-        transfer_account_id = int(request.form['transfer_account_id']) if request.form.get('transfer_account_id') and request.form['transfer_account_id'] != '0' else None
-        notes = request.form.get('notes', '')
-        reference = request.form.get('reference', '')
-        tags = request.form.get('tags', '')
-        recurrence_type = request.form.get('recurrence_type', 'unica')
-        recurrence_end_date = request.form.get('recurrence_end_date') if request.form.get('recurrence_end_date') else None
-        is_confirmed = 'is_confirmed' in request.form
+        # Verificar se é JSON (da aba lateral) ou form normal
+        if request.is_json:
+            data = request.get_json()
+            description = data['description']
+            amount = float(data['amount'])
+            date_str = data['date']
+            transaction_type = data['type']
+            account_id = int(data['account_id'])
+            chart_account_id = data.get('category_id', '')
+            notes = data.get('notes', '')
+        else:
+            # Form normal
+            description = request.form['description']
+            amount = float(request.form['amount'])
+            date_str = request.form['date']
+            transaction_type = request.form['transaction_type']
+            account_id = int(request.form['account_id'])
+            chart_account_id = request.form.get('category', '')
+            notes = request.form.get('notes', '')
+        
+        # Campos adicionais para form normal
+        transfer_account_id = None
+        reference = ''
+        tags = ''
+        recurrence_type = 'unica'
+        recurrence_end_date = None
+        is_confirmed = True
+        
+        if not request.is_json:
+            transfer_account_id = int(request.form['transfer_account_id']) if request.form.get('transfer_account_id') and request.form['transfer_account_id'] != '0' else None
+            reference = request.form.get('reference', '')
+            tags = request.form.get('tags', '')
+            recurrence_type = request.form.get('recurrence_type', 'unica')
+            recurrence_end_date = request.form.get('recurrence_end_date') if request.form.get('recurrence_end_date') else None
+            is_confirmed = 'is_confirmed' in request.form
         
         conn = get_db()
         
         # Validações
         if not chart_account_id and transaction_type != 'transferencia':
-            flash('Categoria é obrigatória para receitas e despesas.', 'danger')
-            return redirect(url_for('new_transaction'))
+            error_msg = 'Categoria é obrigatória para receitas e despesas.'
+            if request.is_json:
+                return jsonify({'success': False, 'message': error_msg})
+            else:
+                flash(error_msg, 'danger')
+                return redirect(url_for('new_transaction'))
         
         try:
             # Inserir transação principal - SQL CORRIGIDO
@@ -1325,14 +1366,23 @@ def new_transaction():
             if recurrence_type != 'unica' and recurrence_end_date:
                 create_recurring_transactions(transaction_id, recurrence_type, recurrence_end_date)
             
-            flash('Transação criada com sucesso!', 'success')
-            return redirect(url_for('transactions'))
+            success_msg = 'Transação criada com sucesso!'
+            if request.is_json:
+                return jsonify({'success': True, 'message': success_msg, 'transaction_id': transaction_id})
+            else:
+                flash(success_msg, 'success')
+                return redirect(url_for('transactions'))
             
         except Exception as e:
             conn.rollback()
-            app.logger.error(f"🚨 Erro ao criar transação: {e}")
-            flash(f'Erro ao criar transação: {str(e)}', 'danger')
-            return redirect(url_for('new_transaction'))
+            error_msg = f'Erro ao criar transação: {str(e)}'
+            app.logger.error(f"🚨 {error_msg}")
+            
+            if request.is_json:
+                return jsonify({'success': False, 'message': error_msg})
+            else:
+                flash(error_msg, 'danger')
+                return redirect(url_for('new_transaction'))
         
         finally:
             conn.close()

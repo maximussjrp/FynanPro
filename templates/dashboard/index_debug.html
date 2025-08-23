@@ -278,6 +278,92 @@
             border-color: rgba(255, 255, 255, 0.5);
             color: white;
         }
+        
+        /* Estilos da Aba Lateral de Nova Transação */
+        .transaction-sidebar {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            z-index: 1040;
+            transition: right 0.3s ease;
+            overflow-y: auto;
+            box-shadow: -5px 0 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .transaction-sidebar.active {
+            right: 0;
+        }
+        
+        .transaction-sidebar-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            margin-bottom: 0;
+        }
+        
+        .transaction-sidebar-content {
+            padding: 2rem;
+        }
+        
+        .transaction-form .form-label {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .transaction-form .form-control,
+        .transaction-form .form-select {
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.9);
+            transition: all 0.3s ease;
+        }
+        
+        .transaction-form .form-control:focus,
+        .transaction-form .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+            background: white;
+        }
+        
+        .transaction-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1035;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .transaction-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .btn-primary-gradient {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary-gradient:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -341,6 +427,124 @@
                 <i class="fas fa-sign-out-alt"></i>
                 Sair do Sistema
             </a>
+        </div>
+    </div>
+
+    <!-- Overlay para Nova Transação -->
+    <div class="transaction-overlay" id="transactionOverlay"></div>
+
+    <!-- Aba Lateral para Nova Transação -->
+    <div class="transaction-sidebar" id="transactionSidebar">
+        <div class="transaction-sidebar-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-1"><i class="fas fa-plus-circle me-2"></i>Nova Transação</h5>
+                    <small>Adicione uma nova movimentação financeira</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" id="closeTransaction" aria-label="Fechar"></button>
+            </div>
+        </div>
+        
+        <div class="transaction-sidebar-content">
+            <form class="transaction-form" id="transactionForm">
+                <div class="mb-3">
+                    <label for="transactionType" class="form-label">
+                        <i class="fas fa-exchange-alt me-2"></i>Tipo de Transação
+                    </label>
+                    <select class="form-select" id="transactionType" name="type" required>
+                        <option value="">Selecione o tipo...</option>
+                        <option value="receita">💰 Receita</option>
+                        <option value="despesa">💸 Despesa</option>
+                        <option value="transferencia">🔄 Transferência</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="transactionDescription" class="form-label">
+                        <i class="fas fa-edit me-2"></i>Descrição
+                    </label>
+                    <input type="text" class="form-control" id="transactionDescription" name="description" 
+                           placeholder="Ex: Salário, Compra no supermercado..." required>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="transactionValue" class="form-label">
+                            <i class="fas fa-dollar-sign me-2"></i>Valor (R$)
+                        </label>
+                        <input type="number" class="form-control" id="transactionValue" name="amount" 
+                               step="0.01" min="0.01" placeholder="0,00" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="transactionDate" class="form-label">
+                            <i class="fas fa-calendar me-2"></i>Data
+                        </label>
+                        <input type="date" class="form-control" id="transactionDate" name="date" required>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="transactionCategory" class="form-label">
+                        <i class="fas fa-tags me-2"></i>Categoria
+                    </label>
+                    <select class="form-select" id="transactionCategory" name="category_id" required>
+                        <option value="">Selecione uma categoria...</option>
+                        {% if categories %}
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">
+                                {% if category.icon %}{{ category.icon }}{% endif %} {{ category.name }}
+                            </option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="1">🍽️ Alimentação</option>
+                            <option value="2">🚗 Transporte</option>
+                            <option value="3">🏠 Moradia</option>
+                            <option value="4">💡 Utilidades</option>
+                            <option value="5">🎮 Entretenimento</option>
+                            <option value="6">👕 Roupas</option>
+                            <option value="7">💊 Saúde</option>
+                            <option value="8">📚 Educação</option>
+                            <option value="9">💼 Trabalho</option>
+                            <option value="10">📱 Outros</option>
+                        {% endif %}
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="transactionAccount" class="form-label">
+                        <i class="fas fa-university me-2"></i>Conta
+                    </label>
+                    <select class="form-select" id="transactionAccount" name="account_id" required>
+                        <option value="">Selecione uma conta...</option>
+                        {% if accounts %}
+                            {% for account in accounts %}
+                            <option value="{{ account.id }}">{{ account.name }} - R$ {{ "%.2f"|format(account.balance) }}</option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="1">💳 Conta Corrente</option>
+                            <option value="2">💰 Poupança</option>
+                            <option value="3">💵 Carteira</option>
+                        {% endif %}
+                    </select>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="transactionNotes" class="form-label">
+                        <i class="fas fa-sticky-note me-2"></i>Observações (opcional)
+                    </label>
+                    <textarea class="form-control" id="transactionNotes" name="notes" rows="3" 
+                              placeholder="Notas adicionais sobre esta transação..."></textarea>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary-gradient">
+                        <i class="fas fa-save me-2"></i>Salvar Transação
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="cancelTransaction">
+                        <i class="fas fa-times me-2"></i>Cancelar
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -732,6 +936,14 @@
             item.addEventListener('click', function(e) {
                 const href = this.getAttribute('href');
                 
+                // Verificar se é o link de Nova Transação
+                if (href === '/transactions/new') {
+                    e.preventDefault();
+                    openTransactionSidebar();
+                    closeSidebarMenu();
+                    return;
+                }
+                
                 // Não prevenir o comportamento padrão para links válidos
                 if (href && href !== '#') {
                     console.log('Navegando para:', href);
@@ -739,6 +951,90 @@
                     // Permitir navegação normal
                     window.location.href = href;
                 }
+            });
+        });
+
+        // Funções da Aba Lateral de Nova Transação
+        const transactionSidebar = document.getElementById('transactionSidebar');
+        const transactionOverlay = document.getElementById('transactionOverlay');
+        const closeTransaction = document.getElementById('closeTransaction');
+        const cancelTransaction = document.getElementById('cancelTransaction');
+        const transactionForm = document.getElementById('transactionForm');
+
+        function openTransactionSidebar() {
+            transactionSidebar.classList.add('active');
+            transactionOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            
+            // Definir data atual
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('transactionDate').value = today;
+        }
+
+        function closeTransactionSidebar() {
+            transactionSidebar.classList.remove('active');
+            transactionOverlay.classList.remove('active');
+            document.body.style.overflow = 'auto';
+            
+            // Limpar formulário
+            transactionForm.reset();
+        }
+
+        // Event Listeners para Nova Transação
+        closeTransaction.addEventListener('click', closeTransactionSidebar);
+        cancelTransaction.addEventListener('click', closeTransactionSidebar);
+        transactionOverlay.addEventListener('click', closeTransactionSidebar);
+
+        // Fechar com ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                if (transactionSidebar.classList.contains('active')) {
+                    closeTransactionSidebar();
+                } else if (sidebar.classList.contains('sidebar-open')) {
+                    closeSidebarMenu();
+                }
+            }
+        });
+
+        // Submissão do formulário
+        transactionForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+            
+            // Mostrar loading
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Salvando...';
+            submitBtn.disabled = true;
+            
+            // Enviar dados para o servidor
+            fetch('/transactions/new', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    // Sucesso - fechar aba e recarregar página para atualizar dados
+                    closeTransactionSidebar();
+                    location.reload();
+                } else {
+                    throw new Error(result.message || 'Erro ao salvar transação');
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao salvar transação: ' + error.message);
+            })
+            .finally(() => {
+                // Restaurar botão
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
             });
         });
     </script>
