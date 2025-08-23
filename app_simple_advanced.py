@@ -1319,9 +1319,12 @@ def new_transaction():
     
     if request.method == 'POST':
         try:
+            app.logger.info("🔍 Debug: Iniciando nova transação")
+            
             # Verificar se é JSON (da aba lateral) ou form normal
             if request.is_json:
                 data = request.get_json()
+                app.logger.info(f"🔍 Debug: Dados recebidos (JSON): {data}")
                 description = data['description']
                 amount = float(data['amount'])
                 date_str = data['date']
@@ -1330,6 +1333,7 @@ def new_transaction():
                 chart_account_id = data.get('category_id', '')
                 notes = data.get('notes', '')
             else:
+                app.logger.info("🔍 Debug: Dados recebidos (Form)")
                 # Form normal
                 description = request.form['description']
                 amount = float(request.form['amount'])
@@ -1338,6 +1342,8 @@ def new_transaction():
                 account_id = int(request.form['account_id'])
                 chart_account_id = request.form.get('category', '')
                 notes = request.form.get('notes', '')
+            
+            app.logger.info(f"🔍 Debug: Processando - Type: {transaction_type}, Account: {account_id}, Category: {chart_account_id}")
             
             # Campos adicionais para form normal
             transfer_account_id = None
@@ -1349,6 +1355,7 @@ def new_transaction():
             # Validações
             if not chart_account_id and transaction_type != 'transferencia':
                 error_msg = 'Categoria é obrigatória para receitas e despesas.'
+                app.logger.warning(f"⚠️ Validação: {error_msg}")
                 if request.is_json:
                     return jsonify({'success': False, 'message': error_msg})
                 else:
@@ -1360,6 +1367,7 @@ def new_transaction():
                                        (account_id, current_user['id'])).fetchone()
             if not account_check:
                 error_msg = 'Conta selecionada não encontrada.'
+                app.logger.warning(f"⚠️ Validação: {error_msg}")
                 if request.is_json:
                     return jsonify({'success': False, 'message': error_msg})
                 else:
@@ -1372,15 +1380,18 @@ def new_transaction():
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA table_info(transactions)")
                 columns = [row[1] for row in cursor.fetchall()]
+                app.logger.info(f"🔍 Debug: Colunas da tabela: {columns}")
                 
                 # Preparar dados baseado na estrutura real da tabela
                 if 'user_id' in columns:
+                    app.logger.info("🔍 Debug: Usando estrutura com user_id")
                     transaction_id = conn.execute('''
                         INSERT INTO transactions (user_id, description, amount, date, type, category, account_id, notes)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (current_user['id'], description, amount, date_str, transaction_type, 
                           chart_account_id or None, account_id, notes)).lastrowid
                 else:
+                    app.logger.info("🔍 Debug: Usando estrutura sem user_id")
                     # Fallback para estrutura sem user_id
                     transaction_id = conn.execute('''
                         INSERT INTO transactions (description, amount, date, type, category, account_id, notes)
