@@ -514,18 +514,73 @@
                     <label for="transactionAccount" class="form-label">
                         <i class="fas fa-university me-2"></i>Conta
                     </label>
-                    <select class="form-select" id="transactionAccount" name="account_id" required>
-                        <option value="">Selecione uma conta...</option>
-                        {% if accounts %}
-                            {% for account in accounts %}
-                            <option value="{{ account.id }}">{{ account.name }} - R$ {{ "%.2f"|format(account.balance) }}</option>
-                            {% endfor %}
-                        {% else %}
-                            <option value="1">💳 Conta Corrente</option>
-                            <option value="2">💰 Poupança</option>
-                            <option value="3">💵 Carteira</option>
-                        {% endif %}
-                    </select>
+                    <div class="d-flex align-items-center gap-2">
+                        <select class="form-select" id="transactionAccount" name="account_id" required>
+                            <option value="">Selecione uma conta...</option>
+                            {% if user_accounts and user_accounts|length > 0 %}
+                                {% for account in user_accounts %}
+                                <option value="{{ account.id }}">
+                                    {{ account.name }} - R$ {{ "%.2f"|format(account.current_balance) }}
+                                </option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="create_default_checking">💳 Conta Corrente (será criada)</option>
+                                <option value="create_default_savings">💰 Poupança (será criada)</option>
+                                <option value="create_default_cash">💵 Carteira (será criada)</option>
+                            {% endif %}
+                        </select>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="addNewAccountBtn" title="Criar nova conta">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Mini formulário para nova conta (oculto por padrão) -->
+                    <div class="card mt-2 d-none" id="newAccountForm">
+                        <div class="card-body p-3">
+                            <h6 class="card-title mb-3">
+                                <i class="fas fa-plus-circle me-2"></i>Nova Conta
+                            </h6>
+                            <div class="row mb-2">
+                                <div class="col-md-8">
+                                    <input type="text" class="form-control form-control-sm" id="newAccountName" 
+                                           placeholder="Nome da conta (ex: Banco do Brasil)" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <select class="form-select form-select-sm" id="newAccountType">
+                                        <option value="conta_corrente">💳 C. Corrente</option>
+                                        <option value="poupanca">💰 Poupança</option>
+                                        <option value="carteira">💵 Carteira</option>
+                                        <option value="investimento">📈 Investimento</option>
+                                        <option value="credito">💎 Cartão Crédito</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-6">
+                                    <input type="text" class="form-control form-control-sm" id="newAccountBank" 
+                                           placeholder="Banco (opcional)">
+                                </div>
+                                <div class="col-md-6">
+                                    <input type="number" class="form-control form-control-sm" id="newAccountBalance" 
+                                           placeholder="Saldo inicial" step="0.01" value="0">
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-6">
+                                    <input type="color" class="form-control form-control-sm" id="newAccountColor" 
+                                           value="#007bff" title="Cor da conta">
+                                </div>
+                                <div class="col-md-6 d-flex gap-1">
+                                    <button type="button" class="btn btn-success btn-sm flex-fill" id="saveNewAccountBtn">
+                                        <i class="fas fa-check me-1"></i>Salvar
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-sm flex-fill" id="cancelNewAccountBtn">
+                                        <i class="fas fa-times me-1"></i>Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="mb-4">
@@ -1003,8 +1058,29 @@
             const formData = new FormData(this);
             const data = Object.fromEntries(formData);
             
-            // Mostrar loading
-            const submitBtn = this.querySelector('button[type="submit"]');
+            // Verificar se precisa criar conta padrão
+            if (data.account_id && data.account_id.startsWith('create_default_')) {
+                const accountType = data.account_id.replace('create_default_', '');
+                
+                // Criar conta padrão primeiro
+                createDefaultAccount(accountType).then(accountId => {
+                    if (accountId) {
+                        data.account_id = accountId;
+                        submitTransaction(data);
+                    } else {
+                        alert('Erro ao criar conta padrão. Tente novamente.');
+                    }
+                }).catch(error => {
+                    console.error('Erro ao criar conta padrão:', error);
+                    alert('Erro ao criar conta padrão: ' + error.message);
+                });
+            } else {
+                submitTransaction(data);
+            }
+        });
+        
+        function submitTransaction(data) {
+            const submitBtn = transactionForm.querySelector('button[type="submit"]');
             const originalText = submitBtn.innerHTML;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Salvando...';
             submitBtn.disabled = true;
@@ -1036,7 +1112,108 @@
                 submitBtn.innerHTML = originalText;
                 submitBtn.disabled = false;
             });
+        }
+
+        // Gerenciamento do mini formulário de conta
+        const addNewAccountBtn = document.getElementById('addNewAccountBtn');
+        const newAccountForm = document.getElementById('newAccountForm');
+        const saveNewAccountBtn = document.getElementById('saveNewAccountBtn');
+        const cancelNewAccountBtn = document.getElementById('cancelNewAccountBtn');
+        
+        addNewAccountBtn.addEventListener('click', function() {
+            newAccountForm.classList.toggle('d-none');
+            if (!newAccountForm.classList.contains('d-none')) {
+                document.getElementById('newAccountName').focus();
+            }
         });
+        
+        cancelNewAccountBtn.addEventListener('click', function() {
+            newAccountForm.classList.add('d-none');
+            clearNewAccountForm();
+        });
+        
+        saveNewAccountBtn.addEventListener('click', function() {
+            const accountData = {
+                name: document.getElementById('newAccountName').value,
+                type: document.getElementById('newAccountType').value,
+                bank: document.getElementById('newAccountBank').value,
+                initial_balance: parseFloat(document.getElementById('newAccountBalance').value) || 0,
+                color: document.getElementById('newAccountColor').value
+            };
+            
+            if (!accountData.name) {
+                alert('Nome da conta é obrigatório!');
+                return;
+            }
+            
+            createAccount(accountData).then(result => {
+                if (result.success) {
+                    // Adicionar nova opção ao select
+                    const select = document.getElementById('transactionAccount');
+                    const option = document.createElement('option');
+                    option.value = result.account_id;
+                    option.textContent = `${accountData.name} - R$ ${accountData.initial_balance.toFixed(2)}`;
+                    option.selected = true;
+                    select.appendChild(option);
+                    
+                    // Ocultar formulário e limpar
+                    newAccountForm.classList.add('d-none');
+                    clearNewAccountForm();
+                    
+                    alert('Conta criada com sucesso!');
+                } else {
+                    alert('Erro ao criar conta: ' + result.message);
+                }
+            }).catch(error => {
+                console.error('Erro ao criar conta:', error);
+                alert('Erro ao criar conta: ' + error.message);
+            });
+        });
+        
+        function clearNewAccountForm() {
+            document.getElementById('newAccountName').value = '';
+            document.getElementById('newAccountType').value = 'conta_corrente';
+            document.getElementById('newAccountBank').value = '';
+            document.getElementById('newAccountBalance').value = '0';
+            document.getElementById('newAccountColor').value = '#007bff';
+        }
+        
+        function createAccount(accountData) {
+            return fetch('/accounts/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(accountData)
+            }).then(response => response.json());
+        }
+        
+        function createDefaultAccount(type) {
+            const defaultAccounts = {
+                'checking': { name: 'Conta Corrente', type: 'conta_corrente', color: '#007bff', icon: '💳' },
+                'savings': { name: 'Poupança', type: 'poupanca', color: '#28a745', icon: '💰' },
+                'cash': { name: 'Carteira', type: 'carteira', color: '#ffc107', icon: '💵' }
+            };
+            
+            const accountData = defaultAccounts[type];
+            if (!accountData) {
+                return Promise.reject(new Error('Tipo de conta inválido'));
+            }
+            
+            return createAccount({
+                name: accountData.name,
+                type: accountData.type,
+                bank: '',
+                initial_balance: 0,
+                color: accountData.color
+            }).then(result => {
+                if (result.success) {
+                    return result.account_id;
+                } else {
+                    throw new Error(result.message);
+                }
+            });
+        }
     </script>
 </body>
 </html>

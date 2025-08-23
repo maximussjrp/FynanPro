@@ -2414,6 +2414,79 @@ def delete_account(id):
     
     return redirect(url_for('accounts'))
 
+@app.route('/accounts/create', methods=['POST'])
+@login_required
+def create_account_ajax():
+    """Criar conta via AJAX para o formulário de Nova Transação"""
+    current_user = get_current_user()
+    
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Requisição deve ser JSON'}), 400
+    
+    try:
+        data = request.get_json()
+        
+        # Validar dados obrigatórios
+        name = data.get('name', '').strip()
+        account_type = data.get('type', '').strip()
+        bank = data.get('bank', '').strip()
+        initial_balance = float(data.get('initial_balance', 0) or 0)
+        color = data.get('color', '#007bff')
+        
+        if not name:
+            return jsonify({'success': False, 'message': 'Nome da conta é obrigatório!'})
+        
+        if not account_type:
+            return jsonify({'success': False, 'message': 'Tipo da conta é obrigatório!'})
+        
+        # Verificar estrutura da tabela accounts dinamicamente
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(accounts)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        # Construir INSERT baseado nas colunas disponíveis
+        if 'account_type' in columns:
+            # Estrutura antiga
+            account_id = conn.execute('''
+                INSERT INTO accounts (user_id, name, account_type, bank_name, 
+                                    current_balance, color, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            ''', (current_user['id'], name, account_type, bank, 
+                  initial_balance, color, datetime.now())).lastrowid
+        elif 'type' in columns:
+            # Estrutura atual
+            account_id = conn.execute('''
+                INSERT INTO accounts (user_id, name, type, bank, 
+                                    current_balance, color, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            ''', (current_user['id'], name, account_type, bank, 
+                  initial_balance, color, datetime.now())).lastrowid
+        else:
+            # Estrutura mínima (fallback)
+            account_id = conn.execute('''
+                INSERT INTO accounts (user_id, name, current_balance, is_active, created_at)
+                VALUES (?, ?, ?, 1, ?)
+            ''', (current_user['id'], name, initial_balance, datetime.now())).lastrowid
+        
+        conn.commit()
+        conn.close()
+        
+        app.logger.info(f"✅ Conta criada via AJAX: ID {account_id}, Nome: {name}")
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Conta criada com sucesso!',
+            'account_id': account_id,
+            'account_name': name,
+            'account_balance': initial_balance
+        })
+        
+    except Exception as e:
+        error_msg = f'Erro ao criar conta: {str(e)}'
+        app.logger.error(f"🚨 {error_msg}")
+        return jsonify({'success': False, 'message': error_msg}), 500
+
 # ===== ROTA DE CONFIGURAÇÕES =====
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
