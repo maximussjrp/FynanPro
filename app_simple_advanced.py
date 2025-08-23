@@ -1392,16 +1392,29 @@ def transactions():
         # VERIFICAÇÃO DINÂMICA DA ESTRUTURA DA TABELA - COMPATIBILIDADE TOTAL
         try:
             cursor = conn.cursor()
+            
+            # Verificar estrutura da tabela transactions
             cursor.execute("PRAGMA table_info(transactions)")
             table_columns = [row[1] for row in cursor.fetchall()]
             app.logger.info(f"🔍 Colunas disponíveis na tabela transactions: {table_columns}")
             
-            # Mapear colunas disponíveis para nomes seguros
+            # Verificar estrutura da tabela accounts
+            cursor.execute("PRAGMA table_info(accounts)")
+            accounts_columns = [row[1] for row in cursor.fetchall()]
+            app.logger.info(f"🔍 Colunas disponíveis na tabela accounts: {accounts_columns}")
+            
+            # Mapear colunas disponíveis para nomes seguros - TRANSACTIONS
             type_column = 'type' if 'type' in table_columns else ('transaction_type' if 'transaction_type' in table_columns else 'category')
             notes_column = 'notes' if 'notes' in table_columns else ('note' if 'note' in table_columns else 'description')
             category_column = 'category' if 'category' in table_columns else ('type' if 'type' in table_columns else 'description')
             
-            app.logger.info(f"📋 Mapeamento: type='{type_column}', notes='{notes_column}', category='{category_column}'")
+            # Mapear colunas disponíveis para nomes seguros - ACCOUNTS
+            bank_column = 'bank_name' if 'bank_name' in accounts_columns else ('bank' if 'bank' in accounts_columns else 'name')
+            balance_column = 'balance' if 'balance' in accounts_columns else ('current_balance' if 'current_balance' in accounts_columns else 'initial_balance')
+            account_type_column = 'account_type' if 'account_type' in accounts_columns else ('type' if 'type' in accounts_columns else "'Conta Corrente'")
+            
+            app.logger.info(f"📋 Mapeamento TRANSACTIONS: type='{type_column}', notes='{notes_column}', category='{category_column}'")
+            app.logger.info(f"📋 Mapeamento ACCOUNTS: bank='{bank_column}', balance='{balance_column}', account_type='{account_type_column}'")
             
         except Exception as e:
             app.logger.error(f"❌ Erro ao verificar estrutura da tabela: {e}")
@@ -1409,6 +1422,9 @@ def transactions():
             type_column = 'type'
             notes_column = 'notes'
             category_column = 'category'
+            bank_column = 'bank_name'
+            balance_column = 'balance'
+            account_type_column = 'account_type'
         
         # QUERY PRINCIPAL ROBUSTA COM COLUNAS DINÂMICAS
         base_query = f'''
@@ -1426,7 +1442,7 @@ def transactions():
             {f"t.is_transfer" if 'is_transfer' in table_columns else '0'} as is_transfer,
             {f"t.recurrence_type" if 'recurrence_type' in table_columns else "''" } as recurrence_type,
             a.name as account_name,
-            {f"a.bank_name" if 'bank_name' in table_columns else "''" } as bank_name,
+            {f"a.{bank_column}" if bank_column in accounts_columns else "''" } as bank_name,
             ta.name as transfer_account_name,
             CASE 
                 WHEN t.{type_column} = 'receita' THEN '📈'
@@ -1504,12 +1520,13 @@ def transactions():
             stats = conn.execute(stats_query, [current_user['id']]).fetchone()
         
         # Buscar contas do usuário para filtros
-        accounts_data = conn.execute('''
-        SELECT id, name, bank_name, account_type, balance 
+        accounts_query = f'''
+        SELECT id, name, {bank_column} as bank_name, {account_type_column} as account_type, {balance_column} as balance
         FROM accounts 
         WHERE user_id = ? AND is_active = 1 
         ORDER BY name
-        ''', (current_user['id'],)).fetchall()
+        '''
+        accounts_data = conn.execute(accounts_query, (current_user['id'],)).fetchall()
         
         # Buscar categorias únicas para filtros
         categories_query = f'''
