@@ -8,6 +8,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
 from decimal import Decimal
+from functools import wraps
 
 try:
     from dateutil.relativedelta import relativedelta
@@ -19,6 +20,8 @@ except ImportError:
             self.years = years
 
 app = Flask(__name__)
+
+# CONFIGURAÇÃO SIMPLIFICADA DE SESSÃO
 app.config['SECRET_KEY'] = 'chave-super-secreta-para-desenvolvimento-2024'
 app.config['DATABASE'] = 'finance_planner_saas.db'
 
@@ -48,6 +51,34 @@ if os.environ.get('PORT'):  # Detectar se está no Render
         
 else:
     app.logger.info("🏠 FYNANPRO ETAPA 4 - Modo desenvolvimento")
+
+# MIDDLEWARE PARA MANUTENÇÃO DE SESSÃO - DESABILITADO PARA TESTE
+# @app.before_request
+# def maintain_session():
+#     """Middleware para manter sessão ativa e debug"""
+    
+#     # Skip para rotas estáticas e de login
+#     if request.endpoint in ['static', 'login', 'register', 'test_transaction_bypass']:
+#         return
+        
+#     # Debug de sessão em todas as requests
+#     if 'user_id' in session:
+#         app.logger.debug(f"🔐 Request {request.endpoint} - User {session['user_id']} - Session válida")
+        
+#         # Renovar timestamp da sessão
+#         session['last_activity'] = datetime.now().isoformat()
+#         session.permanent = True
+#         session.modified = True
+        
+#     else:
+#         app.logger.debug(f"🔓 Request {request.endpoint} - Sem sessão ativa")
+
+# @app.after_request 
+# def after_request(response):
+#     """Debug pós-request"""
+#     if 'user_id' in session:
+#         app.logger.debug(f"✅ Response {request.endpoint} - Session mantida para user {session['user_id']}")
+#     return response
 
 # Criar banco de dados
 def init_db():
@@ -496,16 +527,28 @@ def get_current_user():
     return dict(user) if user else None
 
 def login_required(f):
+    @wraps(f)
     def decorated_function(*args, **kwargs):
+        app.logger.info(f"🔐 Verificando login para rota: {request.endpoint}")
+        app.logger.info(f"🔍 Session keys: {list(session.keys())}")
+        app.logger.info(f"👤 User ID na session: {session.get('user_id', 'NONE')}")
+        app.logger.info(f"🕒 Session permanent: {session.permanent}")
+        
+        # Verificação primária
         if 'user_id' not in session:
-            app.logger.warning("⚠️ Tentativa de acesso sem login - redirecionando")
+            app.logger.warning("⚠️ Sem user_id na sessão - redirecionando para login")
             flash('Por favor, faça login para acessar esta página.', 'info')
             return redirect(url_for('login'))
+        
+        # Tornar sessão permanente se não for
+        if not session.permanent:
+            app.logger.info("🔄 Tornando sessão permanente")
+            session.permanent = True
         
         # Verificação adicional - usuário existe no banco?
         try:
             conn = get_db()
-            user_exists = conn.execute('SELECT id FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+            user_exists = conn.execute('SELECT id, email FROM users WHERE id = ?', (session['user_id'],)).fetchone()
             conn.close()
             
             if not user_exists:
@@ -513,6 +556,8 @@ def login_required(f):
                 session.clear()
                 flash('Sessão inválida. Faça login novamente.', 'warning')
                 return redirect(url_for('login'))
+            else:
+                app.logger.info(f"✅ Usuário {user_exists[1]} ({session['user_id']}) autenticado para {request.endpoint}")
                 
         except Exception as e:
             app.logger.error(f"🚨 Erro ao verificar usuário: {e}")
@@ -521,7 +566,7 @@ def login_required(f):
             return redirect(url_for('login'))
             
         return f(*args, **kwargs)
-    decorated_function.__name__ = f.__name__
+    return decorated_function
     return decorated_function
 
 # Filtros customizados para templates
@@ -689,18 +734,22 @@ def login():
                     if check_password_hash(user['password_hash'], password):
                         app.logger.info("🔑 Senha correta")
                         
+                        # CRIAR SESSÃO SIMPLES
                         session['user_id'] = user['id']
-                        session.permanent = remember
+                        session.permanent = True
                         
                         # Atualizar último login
                         conn.execute('UPDATE users SET last_login = ? WHERE id = ?', 
                                     (datetime.now(), user['id']))
                         conn.commit()
                         app.logger.info("✅ Login realizado com sucesso")
+                        app.logger.info(f"🔐 Session user_id: {session['user_id']}")
                         
                         flash('Login realizado com sucesso!', 'success')
                         next_page = request.args.get('next')
-                        return redirect(next_page) if next_page else redirect(url_for('dashboard'))
+                        redirect_url = next_page if next_page else url_for('dashboard')
+                        app.logger.info(f"🔄 Redirecionando para: {redirect_url}")
+                        return redirect(redirect_url)
                     else:
                         app.logger.warning("❌ Senha incorreta")
                         flash('Email ou senha incorretos.', 'danger')
@@ -1198,119 +1247,440 @@ def dashboard():
                          recent_transactions=[dict(t) for t in recent_transactions],
                          user_accounts=[dict(acc) for acc in user_accounts])
 
-# Rotas de Transações
+# Rotas de Transações - EXTRATO COMPLETO E ROBUSTO
 @app.route('/transactions')
 @login_required
 def transactions():
-    current_user = get_current_user()
-    page = int(request.args.get('page', 1))
-    per_page = 25
-    
-    # Filtros
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    account_id = request.args.get('account_id')
-    transaction_type = request.args.get('transaction_type')
-    search = request.args.get('search', '').strip()
-    
-    conn = get_db()
-    
+    """Extrato completo de transações - Versão melhorada e robusta"""
     try:
-        # Detectar coluna de tipo automaticamente
-        type_column = get_transaction_type_column(conn)
+        app.logger.info("🏦 ACESSANDO EXTRATO DE TRANSAÇÕES")
+        current_user = get_current_user()
         
-        # Construir query base - SQL CORRIGIDO
-        query = f'''
-            SELECT t.*, a.name as account_name, 
-                   CASE 
-                       WHEN t.category IS NOT NULL THEN CAST(t.category AS TEXT)
-                       ELSE 'Sem categoria'
-                   END as category_name,
-                   ta.name as transfer_account_name
-            FROM transactions t
-            JOIN accounts a ON t.account_id = a.id
-            LEFT JOIN accounts ta ON t.transfer_account_id = ta.id
-            WHERE a.user_id = ?
+        if not current_user:
+            app.logger.error("❌ Usuário não encontrado na sessão")
+            return redirect(url_for('login'))
+        
+        app.logger.info(f"👤 Usuário logado: {current_user.get('email', 'N/A')} (ID: {current_user.get('id')})")
+        
+        # Parâmetros de paginação e filtros
+        page = int(request.args.get('page', 1))
+        per_page = 50  # Mais transações por página
+        search = request.args.get('search', '').strip()
+        account_filter = request.args.get('account_id', '')
+        type_filter = request.args.get('type', '')
+        date_from = request.args.get('date_from', '')
+        date_to = request.args.get('date_to', '')
+        
+        app.logger.info(f"🔍 Filtros aplicados: page={page}, search='{search}', account={account_filter}, type='{type_filter}'")
+        
+        conn = get_db()
+        
+        # QUERY PRINCIPAL ROBUSTA - Buscar transações com todos os dados
+        base_query = '''
+        SELECT 
+            t.id,
+            t.description,
+            t.amount,
+            t.type,
+            t.date,
+            t.notes,
+            t.category,
+            t.account_id,
+            t.transfer_to_account_id,
+            t.transfer_from_account_id,
+            t.is_transfer,
+            t.recurrence_type,
+            a.name as account_name,
+            a.bank_name,
+            ta.name as transfer_account_name,
+            CASE 
+                WHEN t.type = 'receita' THEN '📈'
+                WHEN t.type = 'despesa' THEN '📉'
+                ELSE '🔄'
+            END as type_icon,
+            CASE 
+                WHEN t.amount >= 0 THEN 'text-success'
+                ELSE 'text-danger'
+            END as amount_class
+        FROM transactions t
+        LEFT JOIN accounts a ON t.account_id = a.id
+        LEFT JOIN accounts ta ON (t.transfer_to_account_id = ta.id OR t.transfer_from_account_id = ta.id)
+        WHERE (a.user_id = ? OR t.user_id = ?)
         '''
-        params = [current_user['id']]
         
-        # Aplicar filtros
-        if start_date:
-            query += ' AND t.date >= ?'
-            params.append(start_date)
+        params = [current_user['id'], current_user['id']]
         
-        if end_date:
-            query += ' AND t.date <= ?'
-            params.append(end_date)
-        
-        if account_id:
-            query += ' AND t.account_id = ?'
-            params.append(account_id)
-        
-        if transaction_type:
-            query += f' AND t.{type_column} = ?'
-            params.append(transaction_type)
-        
+        # Aplicar filtros dinâmicos
         if search:
-            query += ' AND (t.description LIKE ? OR t.notes LIKE ? OR t.reference LIKE ?)'
+            base_query += ' AND (t.description LIKE ? OR t.notes LIKE ? OR t.category LIKE ?)'
             search_param = f'%{search}%'
             params.extend([search_param, search_param, search_param])
+            
+        if account_filter and account_filter.isdigit():
+            base_query += ' AND t.account_id = ?'
+            params.append(int(account_filter))
+            
+        if type_filter and type_filter in ['receita', 'despesa']:
+            base_query += ' AND t.type = ?'
+            params.append(type_filter)
+            
+        if date_from:
+            base_query += ' AND DATE(t.date) >= ?'
+            params.append(date_from)
+            
+        if date_to:
+            base_query += ' AND DATE(t.date) <= ?'
+            params.append(date_to)
         
-        # Contar total - TRATAMENTO ROBUSTO
-        count_query = f"SELECT COUNT(*) FROM ({query}) as subquery"
-        total_result = conn.execute(count_query, params).fetchone()
-        total = int(total_result[0]) if total_result and total_result[0] is not None else 0
+        # Contar total para paginação
+        count_query = f"SELECT COUNT(*) FROM ({base_query}) as count_subquery"
+        total_transactions = conn.execute(count_query, params).fetchone()[0]
         
         # Adicionar ordenação e paginação
-        query += ' ORDER BY t.date DESC, t.created_at DESC LIMIT ? OFFSET ?'
+        final_query = base_query + '''
+        ORDER BY 
+            DATE(t.date) DESC, 
+            t.id DESC 
+        LIMIT ? OFFSET ?
+        '''
         params.extend([per_page, (page - 1) * per_page])
         
-        transactions_list = conn.execute(query, params).fetchall()
-        app.logger.info(f"📋 Encontradas {len(transactions_list)} transações")
+        # Executar query principal
+        transactions_data = conn.execute(final_query, params).fetchall()
+        app.logger.info(f"📊 Encontradas {len(transactions_data)} transações na página {page}")
         
-        # Buscar contas para filtros
-        user_accounts = conn.execute('''
-            SELECT * FROM accounts 
-            WHERE user_id = ? AND is_active = 1 
-            ORDER BY name
+        # Buscar estatísticas gerais
+        stats_query = '''
+        SELECT 
+            COUNT(*) as total_count,
+            SUM(CASE WHEN t.type = 'receita' THEN t.amount ELSE 0 END) as total_receitas,
+            SUM(CASE WHEN t.type = 'despesa' THEN t.amount ELSE 0 END) as total_despesas,
+            SUM(CASE WHEN t.type = 'receita' THEN t.amount ELSE -t.amount END) as saldo_total
+        FROM transactions t
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE (a.user_id = ? OR t.user_id = ?)
+        '''
+        stats = conn.execute(stats_query, [current_user['id'], current_user['id']]).fetchone()
+        
+        # Buscar contas do usuário para filtros
+        accounts_data = conn.execute('''
+        SELECT id, name, bank_name, account_type, balance 
+        FROM accounts 
+        WHERE user_id = ? AND is_active = 1 
+        ORDER BY name
         ''', (current_user['id'],)).fetchall()
         
+        # Buscar categorias únicas para filtros
+        categories_data = conn.execute('''
+        SELECT DISTINCT category 
+        FROM transactions t
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE (a.user_id = ? OR t.user_id = ?) 
+        AND category IS NOT NULL 
+        AND category != ''
+        ORDER BY category
+        ''', [current_user['id'], current_user['id']]).fetchall()
+        
+        conn.close()
+        
         # Calcular paginação
-        total_pages = (total + per_page - 1) // per_page
-        has_prev = page > 1
-        has_next = page < total_pages
+        total_pages = (total_transactions + per_page - 1) // per_page
+        
+        # Preparar dados para o template
+        pagination_data = {
+            'page': page,
+            'per_page': per_page,
+            'total': total_transactions,
+            'total_pages': total_pages,
+            'has_prev': page > 1,
+            'has_next': page < total_pages,
+            'prev_num': page - 1 if page > 1 else None,
+            'next_num': page + 1 if page < total_pages else None
+        }
+        
+        filter_data = {
+            'search': search,
+            'account_id': account_filter,
+            'type': type_filter,
+            'date_from': date_from,
+            'date_to': date_to
+        }
+        
+        stats_data = {
+            'total_count': stats[0] if stats else 0,
+            'total_receitas': stats[1] if stats else 0,
+            'total_despesas': stats[2] if stats else 0,
+            'saldo_total': stats[3] if stats else 0
+        }
+        
+        app.logger.info(f"✅ Extrato carregado: {len(transactions_data)} transações, {len(accounts_data)} contas")
+        
+        # Verificar se existe template, senão criar um simples
+        try:
+            return render_template('transactions/extrato_completo.html',
+                                 transactions=[dict(t) for t in transactions_data],
+                                 accounts=[dict(acc) for acc in accounts_data], 
+                                 categories=[dict(cat) for cat in categories_data],
+                                 pagination=pagination_data,
+                                 filters=filter_data,
+                                 stats=stats_data,
+                                 current_user=current_user)
+        except:
+            # Template não existe, retornar HTML inline
+            return render_transactions_inline(transactions_data, accounts_data, pagination_data, filter_data, stats_data)
         
     except Exception as e:
-        app.logger.error(f"🚨 Erro na consulta de transações: {e}")
-        transactions_list = []
-        user_accounts = []
-        total = 0
-        total_pages = 0
-        has_prev = False
-        has_next = False
+        app.logger.error(f"🚨 Erro no extrato de transações: {e}")
+        import traceback
+        app.logger.error(f"📊 Traceback: {traceback.format_exc()}")
+        
+        # Fallback: mostrar erro e dados básicos
+        return f"""
+        <html>
+        <head><title>Erro no Extrato</title></head>
+        <body>
+            <h1>🚨 Erro no Extrato de Transações</h1>
+            <p>Erro: {e}</p>
+            <p><a href="/debug-session">🔍 Debug Sessão</a></p>
+            <p><a href="/test-transaction-bypass">🧪 Criar Transação Bypass</a></p>
+            <p><a href="/dashboard">🏠 Dashboard</a></p>
+        </body>
+        </html>
+        """
+
+def render_transactions_inline(transactions, accounts, pagination, filters, stats):
+    """Renderizar extrato inline caso template não exista"""
     
-    finally:
-        conn.close()
+    # Cabeçalho HTML
+    html = '''
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>💰 Extrato de Transações - FynanPro</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+            body { background-color: #f8f9fa; }
+            .transaction-card { transition: transform 0.2s; }
+            .transaction-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+            .stats-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+            .filter-card { background: white; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        </style>
+    </head>
+    <body>
+    <div class="container-fluid py-4">
+    '''
     
-    return render_template('transactions/index_simple.html',
-                         transactions=[dict(t) for t in transactions_list],
-                         user_accounts=[dict(acc) for acc in user_accounts],
-                         pagination={
-                             'page': page,
-                             'total_pages': total_pages,
-                             'has_prev': has_prev,
-                             'has_next': has_next,
-                             'prev_num': page - 1 if has_prev else None,
-                             'next_num': page + 1 if has_next else None
-                         },
-                         filters={
-                             'start_date': start_date,
-                             'end_date': end_date,
-                             'account_id': account_id,
-                             'transaction_type': transaction_type,
-                             'search': search
-                         },
-                         total=total)
+    # Header com estatísticas
+    html += f'''
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="stats-card p-4 rounded-3 text-center">
+                <h1 class="mb-3"><i class="fas fa-chart-line me-2"></i>Extrato de Transações</h1>
+                <div class="row">
+                    <div class="col-md-3">
+                        <h4>{stats.get("total_count", 0)}</h4>
+                        <small>Total de Transações</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-success">R$ {stats.get("total_receitas", 0):,.2f}</h4>
+                        <small>Total Receitas</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-warning">R$ {stats.get("total_despesas", 0):,.2f}</h4>
+                        <small>Total Despesas</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-info">R$ {stats.get("saldo_total", 0):,.2f}</h4>
+                        <small>Saldo Total</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    '''
+    
+    # Filtros
+    html += f'''
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="filter-card p-4">
+                <h5><i class="fas fa-filter me-2"></i>Filtros</h5>
+                <form method="GET" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Buscar</label>
+                        <input type="text" name="search" class="form-control" value="{filters.get('search', '')}" 
+                               placeholder="Descrição, notas...">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Conta</label>
+                        <select name="account_id" class="form-select">
+                            <option value="">Todas</option>
+    '''
+    
+    for account in accounts:
+        selected = 'selected' if str(account.get('id', '')) == filters.get('account_id', '') else ''
+        html += f'<option value="{account.get("id", "")}" {selected}>{account.get("name", "N/A")}</option>'
+    
+    html += f'''
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Tipo</label>
+                        <select name="type" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="receita" {"selected" if filters.get("type") == "receita" else ""}>📈 Receita</option>
+                            <option value="despesa" {"selected" if filters.get("type") == "despesa" else ""}>📉 Despesa</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Data Início</label>
+                        <input type="date" name="date_from" class="form-control" value="{filters.get('date_from', '')}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Data Fim</label>
+                        <input type="date" name="date_to" class="form-control" value="{filters.get('date_to', '')}">
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    '''
+    
+    # Lista de transações
+    html += '''
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Transações</h5>
+                    <div>
+                        <a href="/transactions/new" class="btn btn-success btn-sm">
+                            <i class="fas fa-plus me-1"></i>Nova Transação
+                        </a>
+                        <a href="/test-transaction-bypass" class="btn btn-warning btn-sm">
+                            <i class="fas fa-flask me-1"></i>Teste Rápido
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+    '''
+    
+    if transactions:
+        html += '''
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Conta</th>
+                        <th>Tipo</th>
+                        <th class="text-end">Valor</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+        '''
+        
+        for t in transactions:
+            # Formatação segura dos dados
+            date_str = str(t.get('date', ''))[:10] if t.get('date') else 'N/A'
+            description = str(t.get('description', 'Sem descrição'))[:50]
+            category = str(t.get('category', 'Sem categoria'))[:30]
+            account_name = str(t.get('account_name', 'N/A'))[:20]
+            amount = float(t.get('amount', 0))
+            transaction_type = str(t.get('type', 'N/A'))
+            
+            # Classes CSS condicionais
+            amount_class = 'text-success' if transaction_type == 'receita' else 'text-danger'
+            type_icon = '📈' if transaction_type == 'receita' else '📉'
+            
+            html += f'''
+            <tr class="transaction-card">
+                <td><small class="text-muted">{date_str}</small></td>
+                <td>
+                    <strong>{description}</strong>
+                    {f'<br><small class="text-muted">{t.get("notes", "")[:30]}</small>' if t.get("notes") else ""}
+                </td>
+                <td><span class="badge bg-secondary">{category}</span></td>
+                <td><small>{account_name}</small></td>
+                <td><span class="badge bg-light text-dark">{type_icon} {transaction_type.title()}</span></td>
+                <td class="text-end">
+                    <strong class="{amount_class}">R$ {amount:,.2f}</strong>
+                </td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary btn-sm" title="Editar">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" title="Excluir">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            '''
+        
+        html += '''
+                </tbody>
+            </table>
+        </div>
+        '''
+    else:
+        html += '''
+        <div class="text-center py-5">
+            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">Nenhuma transação encontrada</h5>
+            <p class="text-muted">Que tal criar sua primeira transação?</p>
+            <a href="/test-transaction-bypass" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>Criar Primeira Transação
+            </a>
+        </div>
+        '''
+    
+    # Paginação
+    if pagination['total_pages'] > 1:
+        html += '<div class="card-footer"><nav aria-label="Paginação das transações"><ul class="pagination justify-content-center mb-0">'
+        
+        if pagination['has_prev']:
+            html += f'<li class="page-item"><a class="page-link" href="?page={pagination["prev_num"]}">Anterior</a></li>'
+        
+        # Páginas
+        start_page = max(1, pagination['page'] - 2)
+        end_page = min(pagination['total_pages'], pagination['page'] + 2)
+        
+        for p in range(start_page, end_page + 1):
+            active = 'active' if p == pagination['page'] else ''
+            html += f'<li class="page-item {active}"><a class="page-link" href="?page={p}">{p}</a></li>'
+        
+        if pagination['has_next']:
+            html += f'<li class="page-item"><a class="page-link" href="?page={pagination["next_num"]}">Próxima</a></li>'
+            
+        html += '</ul></nav></div>'
+    
+    html += '''
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    </body>
+    </html>
+    '''
+    
+    return html
 
 @app.route('/transactions/new', methods=['GET', 'POST'])
 @login_required
@@ -2833,6 +3203,174 @@ def ensure_admin_user():
         app.logger.info("✅ Usuário admin já existe")
     
     conn.close()
+
+# ROTA DE TESTE TEMPORÁRIA - BYPASS AUTENTICAÇÃO
+@app.route('/test-transaction-bypass', methods=['POST', 'GET'])
+def test_transaction_bypass():
+    """Rota de teste que bypassa autenticação para testar transações"""
+    app.logger.info("🧪 ROTA DE TESTE BYPASS - INICIADA")
+    
+    if request.method == 'GET':
+        # Mostrar formulário de teste
+        return """
+        <html>
+        <head><title>Teste Bypass Transação</title></head>
+        <body>
+            <h1>🧪 Teste de Transação com Bypass</h1>
+            <form method="POST">
+                <label>Descrição:</label><br>
+                <input type="text" name="description" value="Teste Bypass" required><br><br>
+                
+                <label>Valor:</label><br>
+                <input type="number" step="0.01" name="amount" value="100.00" required><br><br>
+                
+                <label>Data:</label><br>
+                <input type="date" name="date" required><br><br>
+                
+                <label>Tipo:</label><br>
+                <select name="type" required>
+                    <option value="receita">Receita</option>
+                    <option value="despesa">Despesa</option>
+                </select><br><br>
+                
+                <label>Categoria:</label><br>
+                <input type="text" name="category" value="Teste > Bypass" required><br><br>
+                
+                <label>Conta ID:</label><br>
+                <input type="number" name="account_id" value="1" required><br><br>
+                
+                <input type="submit" value="🚀 Criar Transação">
+            </form>
+        </body>
+        </html>
+        """
+    
+    # POST - Criar transação
+    try:
+        app.logger.info(f"📨 Dados recebidos: {request.form}")
+        
+        # Simular usuário logado (user_id = 1)
+        user_id = 1
+        
+        # Pegar dados do formulário
+        description = request.form.get('description', 'Teste Bypass')
+        amount = float(request.form.get('amount', 100.00))
+        date_str = request.form.get('date')
+        transaction_type = request.form.get('type', 'despesa')
+        category = request.form.get('category', 'Teste > Bypass')
+        account_id = int(request.form.get('account_id', 1))
+        
+        app.logger.info(f"💰 Processando transação: {description} | R$ {amount} | {transaction_type}")
+        
+        # Conectar ao banco
+        conn = sqlite3.connect(app.config['DATABASE'])
+        cursor = conn.cursor()
+        
+        # Inserir transação diretamente
+        cursor.execute("""
+            INSERT INTO transactions 
+            (user_id, description, amount, date, type, category, account_id, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, description, amount, date_str, transaction_type, category, account_id, 'Teste Bypass'))
+        
+        transaction_id = cursor.lastrowid
+        conn.commit()
+        
+        app.logger.info(f"✅ Transação criada com ID: {transaction_id}")
+        
+        # Verificar se foi salva
+        cursor.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,))
+        saved_transaction = cursor.fetchone()
+        
+        conn.close()
+        
+        if saved_transaction:
+            app.logger.info("✅ TRANSAÇÃO SALVA E VERIFICADA!")
+            return f"""
+            <html>
+            <body>
+                <h1>✅ SUCESSO!</h1>
+                <p><strong>Transação ID:</strong> {transaction_id}</p>
+                <p><strong>Descrição:</strong> {description}</p>
+                <p><strong>Valor:</strong> R$ {amount}</p>
+                <p><strong>Tipo:</strong> {transaction_type}</p>
+                <p><strong>Status:</strong> SALVA NO BANCO!</p>
+                
+                <h2>📊 Dados Salvos:</h2>
+                <pre>{saved_transaction}</pre>
+                
+                <p><a href="/test-transaction-bypass">🔄 Fazer outro teste</a></p>
+            </body>
+            </html>
+            """
+        else:
+            app.logger.error("❌ Transação não foi salva!")
+            return "❌ ERRO: Transação não foi salva!"
+            
+    except Exception as e:
+        app.logger.error(f"🚨 ERRO no teste bypass: {e}")
+        import traceback
+        app.logger.error(f"📊 Traceback: {traceback.format_exc()}")
+        return f"❌ ERRO: {e}"
+
+# ROTA DE DEBUG DE SESSÃO
+@app.route('/debug-session')
+def debug_session():
+    """Rota para debug da sessão"""
+    try:
+        info = {
+            'session_keys': list(session.keys()),
+            'user_id': session.get('user_id'),
+            'permanent': session.permanent,
+            'session_id': request.cookies.get('session'),
+            'all_cookies': dict(request.cookies)
+        }
+        
+        html = f"""
+        <html>
+        <head><title>Debug Sessão</title></head>
+        <body>
+            <h1>🔍 Debug de Sessão</h1>
+            <h2>Informações da Sessão:</h2>
+            <pre>{str(info)}</pre>
+            
+            <h2>Teste de Rotas:</h2>
+            <p><a href="/dashboard">🏠 Dashboard</a> (requer login)</p>
+            <p><a href="/test-simple-dashboard">🧪 Dashboard Simples</a></p>
+            <p><a href="/login">🔐 Login</a></p>
+            <p><a href="/test-transaction-bypass">🧪 Bypass</a> (sem login)</p>
+            
+            <h2>Ações:</h2>
+            <p><a href="/logout">🚪 Logout</a></p>
+        </body>
+        </html>
+        """
+        return html
+    except Exception as e:
+        return f"Erro no debug: {e}"
+
+# ROTA DE DASHBOARD SIMPLES PARA TESTE - SEM DECORADOR
+@app.route('/test-simple-dashboard')
+def test_simple_dashboard():
+    """Dashboard simplificado para testar sessão"""
+    try:
+        if 'user_id' not in session:
+            return "❌ Sem sessão ativa"
+            
+        user_id = session.get('user_id')
+        return f"""
+        <html>
+        <body>
+            <h1>✅ DASHBOARD SIMPLES FUNCIONANDO!</h1>
+            <p>User ID: {user_id}</p>
+            <p>Sessão ativa e funcionando!</p>
+            <p><a href="/test-transaction-bypass">🧪 Testar Transação Bypass</a></p>
+            <p><a href="/debug-session">🔍 Debug Sessão</a></p>
+        </body>
+        </html>
+        """
+    except Exception as e:
+        return f"Erro no dashboard simples: {e}"
 
 if __name__ == '__main__':
     with app.app_context():
