@@ -1,14 +1,22 @@
-# FinanProAdvanced - Sistema Principal (Versão Simplificada)
 import os
 import sqlite3
 import logging
 import sys
+import secrets
 from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
 from decimal import Decimal
 from functools import wraps
+
+# Importar sistema de migrações
+try:
+    from migrations import run_all_migrations
+except ImportError:
+    # Fallback se migrations não estiver disponível
+    def run_all_migrations(db_path=None):
+        logging.warning("⚠️ Sistema de migrações não disponível")
 
 try:
     from dateutil.relativedelta import relativedelta
@@ -21,8 +29,14 @@ except ImportError:
 
 app = Flask(__name__)
 
-# CONFIGURAÇÃO SIMPLIFICADA DE SESSÃO
-app.config['SECRET_KEY'] = 'chave-super-secreta-para-desenvolvimento-2024'
+# CONFIGURAÇÃO ROBUSTA DE SECRET_KEY
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_hex(32)
+    logging.warning("⚠️ SECRET_KEY não encontrado nas variáveis de ambiente. Usando chave temporária.")
+    logging.warning("🔧 Para produção, defina: export SECRET_KEY='sua_chave_aqui'")
+    
+app.config['SECRET_KEY'] = SECRET_KEY
 app.config['DATABASE'] = 'finance_planner_saas.db'
 
 # Configurar logging profissional para produção
@@ -39,18 +53,49 @@ if os.environ.get('PORT'):  # Detectar se está no Render
     app.logger.setLevel(logging.INFO)
     app.logger.info("🚀 FYNANPRO ETAPA 4 - Logging configurado para produção")
     
-    # INICIALIZAÇÃO AUTOMÁTICA NO RENDER (definir função, executar depois)
+    # INICIALIZAÇÃO AUTOMÁTICA NO RENDER COM MIGRAÇÕES
     def init_render():
         try:
+            app.logger.info("🚀 Iniciando sistema no Render...")
+            
+            # 1. Executar migrações primeiro
+            app.logger.info("🔧 Executando migrações de banco...")
+            run_all_migrations(app.config['DATABASE'])
+            
+            # 2. Inicializar banco e dados padrão
             init_db()
             create_default_data()
             ensure_admin_user()
+            
             app.logger.info("✅ Sistema inicializado automaticamente no Render")
         except Exception as e:
             app.logger.error(f"🚨 Erro na inicialização automática: {e}")
+            import traceback
+            app.logger.error(f"📊 Traceback: {traceback.format_exc()}")
         
 else:
     app.logger.info("🏠 FYNANPRO ETAPA 4 - Modo desenvolvimento")
+
+# FUNÇÃO DE INICIALIZAÇÃO PARA DESENVOLVIMENTO
+def init_development():
+    """Inicialização para ambiente de desenvolvimento"""
+    try:
+        app.logger.info("🏠 Inicializando ambiente de desenvolvimento...")
+        
+        # 1. Executar migrações
+        app.logger.info("🔧 Executando migrações de banco...")
+        run_all_migrations(app.config['DATABASE'])
+        
+        # 2. Inicializar banco e dados
+        init_db()
+        create_default_data()
+        ensure_admin_user()
+        
+        app.logger.info("✅ Ambiente de desenvolvimento pronto!")
+    except Exception as e:
+        app.logger.error(f"🚨 Erro na inicialização de desenvolvimento: {e}")
+        import traceback
+        app.logger.error(f"📊 Traceback: {traceback.format_exc()}")
 
 # MIDDLEWARE PARA MANUTENÇÃO DE SESSÃO - DESABILITADO PARA TESTE
 # @app.before_request
@@ -890,11 +935,11 @@ def create_recurring_transactions(transaction_id, recurrence_type, end_date):
             if current_date <= end_date_obj:
                 # Criar nova transação
                 conn.execute('''
-                    INSERT INTO transactions (description, amount, date, type, category, 
+                    INSERT INTO transactions (description, amount, date, transaction_type, category, 
                                             account_id, notes, parent_transaction_id)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (original['description'], original['amount'], current_date.strftime('%Y-%m-%d'),
-                      original['type'], original['category'], original['account_id'],
+                      original['transaction_type'], original['category'], original['account_id'],
                       original['notes'], transaction_id))
                 
                 count += 1
@@ -1042,6 +1087,79 @@ def calculate_financial_table_data(user_id, period='today'):
         except:
             pass
         return default_data
+
+# Rota de Health Check para monitoramento
+@app.route('/healthz')
+def health_check():
+    """
+    Rota de health check para monitoramento do sistema
+    Verifica estado das migrações e conectividade do banco
+    """
+    try:
+        health_status = {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0",
+            "environment": "production" if os.environ.get('PORT') else "development"
+        }
+        
+        # Verificar conectividade do banco
+        try:
+            conn = get_db()
+            conn.execute("SELECT 1").fetchone()
+            conn.close()
+            health_status["database"] = "connected"
+        except Exception as e:
+            health_status["database"] = f"error: {str(e)}"
+            health_status["status"] = "unhealthy"
+        
+        # Verificar se migrações foram executadas
+        try:
+            conn = get_db()
+            migrations_count = conn.execute(
+                "SELECT COUNT(*) FROM schema_migrations"
+            ).fetchone()[0]
+            conn.close()
+            health_status["migrations"] = f"{migrations_count} executed"
+        except Exception as e:
+            health_status["migrations"] = f"table_missing: {str(e)}"
+        
+        # Verificar tabelas essenciais
+        essential_tables = ['users', 'accounts', 'transactions', 'categories']
+        missing_tables = []
+        
+        try:
+            conn = get_db()
+            for table in essential_tables:
+                result = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?", 
+                    (table,)
+                ).fetchone()
+                if not result:
+                    missing_tables.append(table)
+            conn.close()
+            
+            if missing_tables:
+                health_status["tables"] = f"missing: {', '.join(missing_tables)}"
+                health_status["status"] = "unhealthy"
+            else:
+                health_status["tables"] = "all_present"
+                
+        except Exception as e:
+            health_status["tables"] = f"check_failed: {str(e)}"
+            health_status["status"] = "unhealthy"
+        
+        # Status HTTP baseado na saúde geral
+        status_code = 200 if health_status["status"] == "healthy" else 503
+        
+        return jsonify(health_status), status_code
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 # Rota Principal - Dashboard
 @app.route('/')
@@ -1519,14 +1637,34 @@ def transactions():
         else:
             stats = conn.execute(stats_query, [current_user['id']]).fetchone()
         
-        # Buscar contas do usuário para filtros
-        accounts_query = f'''
-        SELECT id, name, {bank_column} as bank_name, {account_type_column} as account_type, {balance_column} as balance
-        FROM accounts 
-        WHERE user_id = ? AND is_active = 1 
-        ORDER BY name
-        '''
-        accounts_data = conn.execute(accounts_query, (current_user['id'],)).fetchall()
+        # Buscar contas do usuário para filtros - USANDO FUNÇÃO ROBUSTA
+        try:
+            # Importar função robusta da migração 001
+            from migrations.migration_001_add_accounts_balance import get_accounts_with_balance
+            accounts_data = get_accounts_with_balance(conn, current_user['id'])
+        except ImportError:
+            # Fallback para query tradicional se migração não estiver disponível
+            try:
+                accounts_query = f'''
+                SELECT id, name, {bank_column} as bank_name, {account_type_column} as account_type, {balance_column} as balance
+                FROM accounts 
+                WHERE user_id = ? AND is_active = 1 
+                ORDER BY name
+                '''
+                accounts_data = conn.execute(accounts_query, (current_user['id'],)).fetchall()
+            except sqlite3.OperationalError as e:
+                app.logger.warning(f"⚠️ Erro na consulta de contas: {e}")
+                # Fallback final - consulta básica sem balance
+                basic_accounts_query = '''
+                SELECT id, name, 
+                       COALESCE(bank, '') as bank_name, 
+                       COALESCE(type, 'Conta Corrente') as account_type,
+                       0.0 as balance
+                FROM accounts 
+                WHERE user_id = ? AND is_active = 1 
+                ORDER BY name
+                '''
+                accounts_data = conn.execute(basic_accounts_query, (current_user['id'],)).fetchall()
         
         # Buscar categorias únicas para filtros
         categories_query = f'''
@@ -1918,7 +2056,7 @@ def new_transaction():
                 if 'user_id' in columns:
                     app.logger.info("🔍 Debug: Usando estrutura com user_id")
                     transaction_id = conn.execute('''
-                        INSERT INTO transactions (user_id, description, amount, date, type, category, account_id, notes)
+                        INSERT INTO transactions (user_id, description, amount, date, transaction_type, category, account_id, notes)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (current_user['id'], description, amount, date_str, transaction_type, 
                           chart_account_id or None, account_id, notes)).lastrowid
@@ -1926,7 +2064,7 @@ def new_transaction():
                     app.logger.info("🔍 Debug: Usando estrutura sem user_id")
                     # Fallback para estrutura sem user_id
                     transaction_id = conn.execute('''
-                        INSERT INTO transactions (description, amount, date, type, category, account_id, notes)
+                        INSERT INTO transactions (description, amount, date, transaction_type, category, account_id, notes)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     ''', (description, amount, date_str, transaction_type, 
                           chart_account_id or None, account_id, notes)).lastrowid
@@ -1937,13 +2075,13 @@ def new_transaction():
                 if transaction_type == 'transferencia' and transfer_account_id:
                     if 'user_id' in columns:
                         conn.execute('''
-                            INSERT INTO transactions (user_id, description, amount, date, type, account_id, notes, transfer_to_account_id)
+                            INSERT INTO transactions (user_id, description, amount, date, transaction_type, account_id, notes, transfer_to_account_id)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         ''', (current_user['id'], f'Transferência: {description}', -amount, date_str, 'transferencia',
                               transfer_account_id, notes, account_id))
                     else:
                         conn.execute('''
-                            INSERT INTO transactions (description, amount, date, type, account_id, notes, transfer_to_account_id)
+                            INSERT INTO transactions (description, amount, date, transaction_type, account_id, notes, transfer_to_account_id)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                         ''', (f'Transferência: {description}', -amount, date_str, 'transferencia',
                               transfer_account_id, notes, account_id))
@@ -3536,6 +3674,11 @@ def test_simple_dashboard():
 
 if __name__ == '__main__':
     with app.app_context():
+        # Executar migrações primeiro
+        app.logger.info("🔧 Executando migrações...")
+        run_all_migrations(app.config['DATABASE'])
+        
+        # Inicializar sistema
         init_db()
         create_default_data()
         ensure_admin_user()  # Garantir admin sempre disponível
@@ -3544,5 +3687,8 @@ if __name__ == '__main__':
     if os.environ.get('PORT'):
         import threading
         threading.Thread(target=init_render, daemon=True).start()
+    else:
+        # Executar inicialização de desenvolvimento
+        init_development()
     
     app.run(debug=True, host='127.0.0.1', port=5000)

@@ -1,9 +1,11 @@
-# run.py - Arquivo solicitado pelo Render com logging avançado
-# Sistema FynanPro ETAPA 4 - Diagnóstico profissional
+# run.py - Arquivo solicitado pelo Render com logging avançado + Migrações
+# Sistema FynanPro ETAPA 5 - Sistema completo com migrações v3.0
 
 import os
 import sys
 import logging
+import secrets
+import sqlite3
 from datetime import datetime
 
 # Configuração de logging profissional
@@ -18,13 +20,60 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+def setup_secret_key():
+    """Configurar SECRET_KEY de forma robusta"""
+    SECRET_KEY = os.getenv("SECRET_KEY")
+    
+    if not SECRET_KEY:
+        logger.warning("⚠️ SECRET_KEY não encontrado nas variáveis de ambiente")
+        logger.warning("🔧 Para produção, configure: SECRET_KEY='sua_chave_secreta_aqui'")
+        
+        # Gerar chave temporária
+        SECRET_KEY = secrets.token_hex(32)
+        logger.info("✅ SECRET_KEY temporário gerado")
+    else:
+        logger.info("✅ SECRET_KEY carregado das variáveis de ambiente")
+    
+    # Definir para uso do Flask
+    os.environ['SECRET_KEY'] = SECRET_KEY
+    return SECRET_KEY
+
+def run_migrations():
+    """Executar migrações de banco de dados"""
+    try:
+        logger.info("🔧 Iniciando sistema de migrações...")
+        
+        # Verificar se sistema de migrações existe
+        if not os.path.exists('migrations/__init__.py'):
+            logger.error("❌ Sistema de migrações não encontrado!")
+            return False
+        
+        # Importar sistema de migrações
+        from migrations import run_all_migrations
+        
+        # Executar todas as migrações
+        success = run_all_migrations()
+        
+        if success:
+            logger.info("✅ Migrações executadas com sucesso!")
+        else:
+            logger.error("❌ Erro nas migrações!")
+            
+        return success
+        
+    except Exception as e:
+        logger.error(f"❌ Erro no sistema de migrações: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return False
+
 def setup_database_diagnostics():
     """Diagnóstico avançado do banco de dados"""
     try:
         import sqlite3
         
         # Verificar se banco existe
-        db_path = 'finance_planner_saas.db'
+        db_path = 'finance_planner.db'  # Usar nome padrão
         if not os.path.exists(db_path):
             logger.warning(f"⚠️ Banco {db_path} não existe - será criado")
             return False
@@ -37,16 +86,15 @@ def setup_database_diagnostics():
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
         tables = [row[0] for row in cursor.fetchall()]
         
-        critical_tables = ['users', 'accounts', 'transactions', 'categories', 'budgets', 'goals', 'goal_contributions']
+        logger.info(f"📋 Tabelas encontradas: {', '.join(tables)}")
+        
+        critical_tables = ['users', 'accounts', 'transactions', 'categories']
         
         for table in critical_tables:
             if table in tables:
-                logger.info(f"✅ Tabela {table} - OK")
-                # Verificar estrutura da tabela users especificamente
-                if table == 'users':
-                    cursor.execute(f"PRAGMA table_info({table})")
-                    columns = [row[1] for row in cursor.fetchall()]
-                    logger.info(f"📋 Colunas users: {columns}")
+                # Contar registros
+                count = cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                logger.info(f"✅ Tabela {table} - {count} registros")
             else:
                 logger.error(f"❌ Tabela {table} - MISSING")
                 
@@ -70,16 +118,24 @@ def main():
         files = os.listdir('.')
         logger.info(f"📂 Arquivos: {[f for f in files if f.endswith(('.py', '.db', '.txt', '.yaml'))]}")
         
-        # Diagnóstico do banco
+        # 1. Configurar SECRET_KEY primeiro
+        logger.info("🔐 CONFIGURANDO SECRET_KEY:")
+        setup_secret_key()
+        
+        # 2. Executar migrações
+        logger.info("🔧 EXECUTANDO MIGRAÇÕES:")
+        migrations_ok = run_migrations()
+        
+        # 3. Diagnóstico do banco
         logger.info("🔍 DIAGNÓSTICO DO BANCO DE DADOS:")
         db_ok = setup_database_diagnostics()
         
-        # Importar aplicação
+        # 4. Importar aplicação
         logger.info("📦 Importando app_simple_advanced...")
         from app_simple_advanced import app
         logger.info("✅ Aplicação importada com sucesso!")
         
-        # Configurar Flask para produção com logs detalhados
+        # 5. Configurar Flask para produção com logs detalhados
         app.config['ENV'] = 'production'
         app.config['DEBUG'] = False
         app.config['TESTING'] = False
