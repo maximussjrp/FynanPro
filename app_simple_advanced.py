@@ -1300,19 +1300,34 @@ def transactions_debug():
         try:
             full_query = '''
             SELECT 
-                t.id, t.description, t.amount, t.type, t.date,
-                a.name as account_name
+                t.id, t.description, t.amount, t.date
             FROM transactions t
             LEFT JOIN accounts a ON t.account_id = a.id
-            WHERE (a.user_id = ? OR t.user_id = ?)
+            WHERE (a.user_id = ?)
             ORDER BY t.date DESC
             LIMIT 10
             '''
-            transactions = conn.execute(full_query, (current_user['id'], current_user['id'])).fetchall()
+            transactions = conn.execute(full_query, (current_user['id'],)).fetchall()
             app.logger.info(f"✅ DEBUG: Query completa executada - {len(transactions)} resultados")
         except Exception as e:
             conn.close()
             return f"❌ DEBUG: Erro na query completa: {str(e)}"
+        
+        # Teste 6: Verificar estrutura das tabelas
+        try:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(transactions)")
+            columns_info = cursor.fetchall()
+            transactions_columns = [col[1] for col in columns_info]
+            app.logger.info(f"🔍 DEBUG: Colunas transactions: {transactions_columns}")
+            
+            cursor.execute("PRAGMA table_info(accounts)")
+            accounts_columns_info = cursor.fetchall()
+            accounts_columns = [col[1] for col in accounts_columns_info]
+            app.logger.info(f"🔍 DEBUG: Colunas accounts: {accounts_columns}")
+        except Exception as e:
+            conn.close()
+            return f"❌ DEBUG: Erro ao verificar estrutura das tabelas: {str(e)}"
         
         conn.close()
         
@@ -1325,6 +1340,13 @@ def transactions_debug():
             <li>✅ Transações do usuário: {user_transactions}</li>
             <li>✅ Query completa executada: {len(transactions)} resultados</li>
         </ul>
+        
+        <h3>📋 Estrutura das Tabelas:</h3>
+        <ul>
+            <li><strong>Transactions:</strong> {', '.join(transactions_columns)}</li>
+            <li><strong>Accounts:</strong> {', '.join(accounts_columns)}</li>
+        </ul>
+        
         <h3>Primeiras transações:</h3>
         <ul>
         """
@@ -1367,27 +1389,48 @@ def transactions():
         
         conn = get_db()
         
-        # QUERY PRINCIPAL ROBUSTA - Buscar transações com todos os dados
-        base_query = '''
+        # VERIFICAÇÃO DINÂMICA DA ESTRUTURA DA TABELA - COMPATIBILIDADE TOTAL
+        try:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(transactions)")
+            table_columns = [row[1] for row in cursor.fetchall()]
+            app.logger.info(f"🔍 Colunas disponíveis na tabela transactions: {table_columns}")
+            
+            # Mapear colunas disponíveis para nomes seguros
+            type_column = 'type' if 'type' in table_columns else ('transaction_type' if 'transaction_type' in table_columns else 'category')
+            notes_column = 'notes' if 'notes' in table_columns else ('note' if 'note' in table_columns else 'description')
+            category_column = 'category' if 'category' in table_columns else ('type' if 'type' in table_columns else 'description')
+            
+            app.logger.info(f"📋 Mapeamento: type='{type_column}', notes='{notes_column}', category='{category_column}'")
+            
+        except Exception as e:
+            app.logger.error(f"❌ Erro ao verificar estrutura da tabela: {e}")
+            # Fallback para estrutura padrão
+            type_column = 'type'
+            notes_column = 'notes'
+            category_column = 'category'
+        
+        # QUERY PRINCIPAL ROBUSTA COM COLUNAS DINÂMICAS
+        base_query = f'''
         SELECT 
             t.id,
             t.description,
             t.amount,
-            t.type,
+            t.{type_column} as type,
             t.date,
-            t.notes,
-            t.category,
+            {f"t.{notes_column}" if notes_column in table_columns else "''"} as notes,
+            {f"t.{category_column}" if category_column in table_columns else "'Outros'" } as category,
             t.account_id,
-            t.transfer_to_account_id,
-            t.transfer_from_account_id,
-            t.is_transfer,
-            t.recurrence_type,
+            {f"t.transfer_to_account_id" if 'transfer_to_account_id' in table_columns else 'NULL'} as transfer_to_account_id,
+            {f"t.transfer_from_account_id" if 'transfer_from_account_id' in table_columns else 'NULL'} as transfer_from_account_id,
+            {f"t.is_transfer" if 'is_transfer' in table_columns else '0'} as is_transfer,
+            {f"t.recurrence_type" if 'recurrence_type' in table_columns else "''" } as recurrence_type,
             a.name as account_name,
-            a.bank_name,
+            {f"a.bank_name" if 'bank_name' in table_columns else "''" } as bank_name,
             ta.name as transfer_account_name,
             CASE 
-                WHEN t.type = 'receita' THEN '📈'
-                WHEN t.type = 'despesa' THEN '📉'
+                WHEN t.{type_column} = 'receita' THEN '📈'
+                WHEN t.{type_column} = 'despesa' THEN '📉'
                 ELSE '🔄'
             END as type_icon,
             CASE 
@@ -1396,15 +1439,18 @@ def transactions():
             END as amount_class
         FROM transactions t
         LEFT JOIN accounts a ON t.account_id = a.id
-        LEFT JOIN accounts ta ON (t.transfer_to_account_id = ta.id OR t.transfer_from_account_id = ta.id)
-        WHERE (a.user_id = ? OR t.user_id = ?)
+        LEFT JOIN accounts ta ON ({f"t.transfer_to_account_id = ta.id OR t.transfer_from_account_id = ta.id" if 'transfer_to_account_id' in table_columns else "t.account_id = ta.id"})
+        WHERE (a.user_id = ? OR {f"t.user_id = ?" if 'user_id' in table_columns else "1=1"})
         '''
         
-        params = [current_user['id'], current_user['id']]
+        if 'user_id' in table_columns:
+            params = [current_user['id'], current_user['id']]
+        else:
+            params = [current_user['id']]
         
         # Aplicar filtros dinâmicos
         if search:
-            base_query += ' AND (t.description LIKE ? OR t.notes LIKE ? OR t.category LIKE ?)'
+            base_query += f' AND (t.description LIKE ? OR t.{notes_column} LIKE ? OR t.{category_column} LIKE ?)'
             search_param = f'%{search}%'
             params.extend([search_param, search_param, search_param])
             
@@ -1413,7 +1459,7 @@ def transactions():
             params.append(int(account_filter))
             
         if type_filter and type_filter in ['receita', 'despesa']:
-            base_query += ' AND t.type = ?'
+            base_query += f' AND t.{type_column} = ?'
             params.append(type_filter)
             
         if date_from:
@@ -1442,17 +1488,20 @@ def transactions():
         app.logger.info(f"📊 Encontradas {len(transactions_data)} transações na página {page}")
         
         # Buscar estatísticas gerais
-        stats_query = '''
+        stats_query = f'''
         SELECT 
             COUNT(*) as total_count,
-            SUM(CASE WHEN t.type = 'receita' THEN t.amount ELSE 0 END) as total_receitas,
-            SUM(CASE WHEN t.type = 'despesa' THEN t.amount ELSE 0 END) as total_despesas,
-            SUM(CASE WHEN t.type = 'receita' THEN t.amount ELSE -t.amount END) as saldo_total
+            SUM(CASE WHEN t.{type_column} = 'receita' THEN t.amount ELSE 0 END) as total_receitas,
+            SUM(CASE WHEN t.{type_column} = 'despesa' THEN t.amount ELSE 0 END) as total_despesas,
+            SUM(CASE WHEN t.{type_column} = 'receita' THEN t.amount ELSE -t.amount END) as saldo_total
         FROM transactions t
         LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (a.user_id = ? OR t.user_id = ?)
+        WHERE (a.user_id = ? OR {f"t.user_id = ?" if 'user_id' in table_columns else "1=1"})
         '''
-        stats = conn.execute(stats_query, [current_user['id'], current_user['id']]).fetchone()
+        if 'user_id' in table_columns:
+            stats = conn.execute(stats_query, [current_user['id'], current_user['id']]).fetchone()
+        else:
+            stats = conn.execute(stats_query, [current_user['id']]).fetchone()
         
         # Buscar contas do usuário para filtros
         accounts_data = conn.execute('''
@@ -1463,15 +1512,19 @@ def transactions():
         ''', (current_user['id'],)).fetchall()
         
         # Buscar categorias únicas para filtros
-        categories_data = conn.execute('''
-        SELECT DISTINCT category 
+        categories_query = f'''
+        SELECT DISTINCT {category_column} as category
         FROM transactions t
         LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE (a.user_id = ? OR t.user_id = ?) 
-        AND category IS NOT NULL 
-        AND category != ''
-        ORDER BY category
-        ''', [current_user['id'], current_user['id']]).fetchall()
+        WHERE (a.user_id = ? {f"OR t.user_id = ?" if 'user_id' in table_columns else ""}) 
+        AND {category_column} IS NOT NULL 
+        AND {category_column} != ''
+        ORDER BY {category_column}
+        '''
+        if 'user_id' in table_columns:
+            categories_data = conn.execute(categories_query, [current_user['id'], current_user['id']]).fetchall()
+        else:
+            categories_data = conn.execute(categories_query, [current_user['id']]).fetchall()
         
         conn.close()
         
