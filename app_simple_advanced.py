@@ -27,6 +27,9 @@ except ImportError:
             self.months = months
             self.years = years
 
+def _has_column(conn, table, column):
+    return any(r[1] == column for r in conn.execute(f"PRAGMA table_info({table});").fetchall())
+
 app = Flask(__name__)
 
 # CONFIGURAÇÃO ROBUSTA DE SECRET_KEY
@@ -424,6 +427,16 @@ def create_default_data():
     try:
         conn = get_db()
         cursor = conn.cursor()
+        
+        # Verificar se tabela categories existe (guard de segurança)
+        try:
+            cursor.execute("SELECT 1 FROM categories LIMIT 1;")
+            # Se chegou até aqui, tabela existe
+        except Exception:
+            # Tabela ainda não existe — não fazer nada aqui, migrações criam
+            app.logger.info("ℹ️ Tabela categories não existe ainda - aguardando migrações")
+            conn.close()
+            return
         
         # Verificar se já existem categorias
         existing_categories = cursor.execute('SELECT COUNT(*) FROM categories').fetchone()
@@ -1637,34 +1650,32 @@ def transactions():
         else:
             stats = conn.execute(stats_query, [current_user['id']]).fetchone()
         
-        # Buscar contas do usuário para filtros - USANDO FUNÇÃO ROBUSTA
-        try:
-            # Importar função robusta da migração 001
-            from migrations.migration_001_add_accounts_balance import get_accounts_with_balance
-            accounts_data = get_accounts_with_balance(conn, current_user['id'])
-        except ImportError:
-            # Fallback para query tradicional se migração não estiver disponível
-            try:
-                accounts_query = f'''
-                SELECT id, name, {bank_column} as bank_name, {account_type_column} as account_type, {balance_column} as balance
-                FROM accounts 
-                WHERE user_id = ? AND is_active = 1 
-                ORDER BY name
-                '''
-                accounts_data = conn.execute(accounts_query, (current_user['id'],)).fetchall()
-            except sqlite3.OperationalError as e:
-                app.logger.warning(f"⚠️ Erro na consulta de contas: {e}")
-                # Fallback final - consulta básica sem balance
-                basic_accounts_query = '''
-                SELECT id, name, 
-                       COALESCE(bank, '') as bank_name, 
-                       COALESCE(type, 'Conta Corrente') as account_type,
-                       0.0 as balance
-                FROM accounts 
-                WHERE user_id = ? AND is_active = 1 
-                ORDER BY name
-                '''
-                accounts_data = conn.execute(basic_accounts_query, (current_user['id'],)).fetchall()
+        # Buscar contas do usuário para filtros - USANDO FALLBACK CTE
+        if _has_column(conn, "accounts", "balance"):
+            accounts_data = conn.execute("""
+                SELECT id, name, bank_name, account_type, balance
+                FROM accounts
+                WHERE user_id = ?
+                ORDER BY name;
+            """, (current_user['id'],)).fetchall()
+        else:
+            accounts_data = conn.execute("""
+                WITH balances AS (
+                  SELECT account_id,
+                         COALESCE(SUM(CASE
+                           WHEN transaction_type='income'  THEN amount
+                           WHEN transaction_type='expense' THEN -amount
+                           ELSE 0 END),0) AS balance
+                  FROM transactions
+                  GROUP BY account_id
+                )
+                SELECT a.id, a.name, a.bank_name, a.account_type,
+                       COALESCE(b.balance, 0) AS balance
+                FROM accounts a
+                LEFT JOIN balances b ON b.account_id = a.id
+                WHERE a.user_id = ?
+                ORDER BY a.name;
+            """, (current_user['id'],)).fetchall()
         
         # Buscar categorias únicas para filtros
         categories_query = f'''
@@ -1998,7 +2009,7 @@ def new_transaction():
                 description = data['description']
                 amount = float(data['amount'])
                 date_str = data['date']
-                transaction_type = data['type']
+                transaction_type = data.get('transaction_type', data.get('type', 'expense'))  # Fallback para 'type'
                 account_id = int(data['account_id'])
                 chart_account_id = data.get('category_id', '')
                 notes = data.get('notes', '')
@@ -3556,7 +3567,7 @@ def test_transaction_bypass():
         description = request.form.get('description', 'Teste Bypass')
         amount = float(request.form.get('amount', 100.00))
         date_str = request.form.get('date')
-        transaction_type = request.form.get('type', 'despesa')
+        transaction_type = request.form.get('transaction_type', request.form.get('type', 'despesa'))  # Fallback
         category = request.form.get('category', 'Teste > Bypass')
         account_id = int(request.form.get('account_id', 1))
         

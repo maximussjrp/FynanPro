@@ -1,136 +1,72 @@
-"""
-Sistema de Migrações Idempotentes - FynanPro
-Arquitetura: Migrations automáticas no startup
-Compatibilidade: SQLite + Python 3.13 + Flask
-"""
+﻿import sqlite3, logging, os
 
-import os
-import sqlite3
-import logging
-from typing import List, Callable
+DB_PATH = os.getenv("DB_PATH", "finance_planner_saas.db")
 
-logger = logging.getLogger(__name__)
+def _get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    return conn
 
-class MigrationRunner:
-    """
-    Executa migrações de forma idempotente e segura
-    """
-    
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-        self.migrations = []
-        
-    def register_migration(self, name: str, migration_func: Callable):
-        """Registra uma migração para execução"""
-        self.migrations.append((name, migration_func))
-        
-    def run_all(self):
-        """Executa todas as migrações registradas"""
-        logger.info("🔧 Iniciando sistema de migrações...")
-        
-        # Criar tabela de controle de migrações se não existir
-        self._create_migrations_table()
-        
-        executed_count = 0
-        for name, migration_func in self.migrations:
-            try:
-                if not self._is_migration_executed(name):
-                    logger.info(f"⚡ Executando migração: {name}")
-                    
-                    # Executar migração em transação
-                    with sqlite3.connect(self.db_path) as conn:
-                        conn.execute("BEGIN TRANSACTION;")
-                        try:
-                            migration_func(conn)
-                            self._mark_migration_executed(conn, name)
-                            conn.execute("COMMIT;")
-                            executed_count += 1
-                            logger.info(f"✅ Migração concluída: {name}")
-                        except Exception as e:
-                            conn.execute("ROLLBACK;")
-                            raise e
-                else:
-                    logger.debug(f"⏭️  Migração já executada: {name}")
-                    
-            except Exception as e:
-                logger.error(f"❌ Erro na migração {name}: {str(e)}")
-                raise
-                
-        if executed_count > 0:
-            logger.info(f"🎉 {executed_count} migrações executadas com sucesso!")
-        else:
-            logger.info("✅ Todas as migrações já estavam aplicadas")
-            
-    def _create_migrations_table(self):
-        """Cria tabela de controle de migrações"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS schema_migrations (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE,
-                    executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            
-    def _is_migration_executed(self, name: str) -> bool:
-        """Verifica se uma migração já foi executada"""
-        with sqlite3.connect(self.db_path) as conn:
-            result = conn.execute(
-                "SELECT 1 FROM schema_migrations WHERE name = ?", 
-                (name,)
-            ).fetchone()
-            return result is not None
-            
-    def _mark_migration_executed(self, conn: sqlite3.Connection, name: str):
-        """Marca uma migração como executada"""
-        conn.execute(
-            "INSERT INTO schema_migrations (name) VALUES (?)", 
-            (name,)
-        )
+def table_exists(conn, table):
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?;", (table,)
+    ).fetchone() is not None
 
-# Utilitários para migrações
-def column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
-    """Verifica se uma coluna existe em uma tabela"""
-    cursor = conn.execute(f"PRAGMA table_info({table})")
-    columns = [row[1] for row in cursor.fetchall()]
-    return column in columns
+def column_exists(conn, table, column):
+    return any(r[1] == column for r in conn.execute(f"PRAGMA table_info({table});"))
 
-def table_exists(conn: sqlite3.Connection, table: str) -> bool:
-    """Verifica se uma tabela existe"""
-    cursor = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", 
-        (table,)
-    )
-    return cursor.fetchone() is not None
+def ensure_schema_migrations(conn):
+    conn.execute('''
+    CREATE TABLE IF NOT EXISTS schema_migrations(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    ''')
 
-def index_exists(conn: sqlite3.Connection, index_name: str) -> bool:
-    """Verifica se um índice existe"""
-    cursor = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='index' AND name=?", 
-        (index_name,)
-    )
-    return cursor.fetchone() is not None
+def applied_set(conn):
+    rows = conn.execute("SELECT name FROM schema_migrations;").fetchall()
+    return {r[0] for r in rows}
 
-# Importar todas as migrações
+def mark_applied(conn, name):
+    conn.execute("INSERT OR IGNORE INTO schema_migrations(name) VALUES (?);", (name,))
+
+# ---- import das migrações reais ----
+from .migration_000_create_base_schema import migration_000
 from .migration_001_add_accounts_balance import migration_001
 from .migration_002_fix_transactions_type_column import migration_002
-# from .migration_003_create_categories_and_seed import migration_003  # Temporariamente desabilitado
+from .migration_003_seed_categories import migration_003
 
-def run_all_migrations(db_path: str = "finance_planner.db"):
-    """
-    Executa todas as migrações disponíveis
-    
-    Args:
-        db_path: Caminho para o banco de dados SQLite
-    """
-    runner = MigrationRunner(db_path)
-    
-    # Registrar migrações na ordem correta
-    runner.register_migration("001_add_accounts_balance", migration_001)
-    runner.register_migration("002_fix_transactions_type_column", migration_002)
-    # runner.register_migration("003_create_categories_and_seed", migration_003)  # Desabilitado temporariamente
-    
-    # Executar todas
-    runner.run_all()
-    
-    logger.info("🚀 Sistema de migrações concluído!")
+MIGRATIONS = [
+    ("000_create_base_schema", migration_000),
+    ("001_add_accounts_balance", migration_001),
+    ("002_fix_transactions_type_column", migration_002),
+    ("003_seed_categories", migration_003),
+]
+
+def run_all_migrations(db_path=None):
+    global DB_PATH
+    if db_path:
+        DB_PATH = db_path
+
+    logging.getLogger("migrations").info(" Iniciando sistema de migrações...")
+    conn = _get_conn()
+    try:
+        ensure_schema_migrations(conn)
+        done = applied_set(conn)
+        for name, fn in MIGRATIONS:
+            if name in done:
+                logging.getLogger("migrations").info(f" Migração já aplicada: {name}")
+                continue
+            logging.getLogger("migrations").info(f" Executando migração: {name}")
+            try:
+                fn(conn, table_exists=table_exists, column_exists=column_exists)
+                mark_applied(conn, name)
+                conn.commit()
+            except Exception as e:
+                logging.getLogger("migrations").error(f" Erro na migração {name}: {e}")
+                conn.rollback()
+                return False
+        return True
+    finally:
+        conn.close()
